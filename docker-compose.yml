@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-#    image: checkmysolar/modbus-bridge:latest
+    image: ghcr.io/checkmysolar/modbus-bridge:latest
     restart: unless-stopped
     environment:
       CMS_BRIDGE_TOKEN: ${CMS_BRIDGE_TOKEN:?CMS_BRIDGE_TOKEN is required}
