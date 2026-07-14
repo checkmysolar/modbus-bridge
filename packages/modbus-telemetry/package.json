@@ -1,0 +1,10 @@
+{
+  "name": "@checkmysolar/modbus-telemetry",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./types.ts",
+    "./workMode": "./workMode.ts"
+  }
+}

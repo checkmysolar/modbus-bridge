@@ -1,0 +1,36 @@
+services:
+  modbus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+#    image: checkmysolar/modbus-bridge:latest
+    restart: unless-stopped
+    environment:
+      CMS_BRIDGE_TOKEN: ${CMS_BRIDGE_TOKEN:?CMS_BRIDGE_TOKEN is required}
+      MODBUS_HOST: ${MODBUS_HOST:?MODBUS_HOST is required}
+      MODBUS_PORT: ${MODBUS_PORT:-502}
+      MODBUS_UNIT_ID: ${MODBUS_UNIT_ID:-247}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-10000}
+      MODBUS_TIMEOUT_MS: ${MODBUS_TIMEOUT_MS:-5000}
+      BRIDGE_HTTP_PORT: ${BRIDGE_HTTP_PORT:-8080}
+      BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
+    networks:
+      cms_net:
+        aliases:
+          - ${BRIDGE_HOSTNAME}
+    volumes:
+      - bridge_data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.1
+    restart: unless-stopped
+    command: tunnel run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
+    networks:
+      - cms_net
+
+networks:
+  cms_net:
+    driver: bridge
+
+volumes:
+  bridge_data:
