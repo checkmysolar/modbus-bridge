@@ -6,7 +6,16 @@
  */
 import { formatError } from './errors.js';
 import { H1G2ModbusClient } from './modbus/client.js';
+import { H1_G2_ENERGY_COUNTERS_START } from './modbus/h1g2TodayTotals.js';
 import { workModeCodeToLabel } from '@checkmysolar/modbus-telemetry/workMode';
+
+function formatKwh(value: number | null): string {
+  return value === null ? 'unavailable' : `${value.toFixed(2)} kWh`;
+}
+
+function formatRaw(value: number | null): string {
+  return value === null ? 'n/a' : String(value);
+}
 
 function readInt(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
@@ -63,6 +72,23 @@ async function main(): Promise<void> {
         telemetry.remoteActivePowerW !== undefined ? `${telemetry.remoteActivePowerW} W` : 'n/a';
       console.log(`  reg41000=${reg41000}  reg44000=${reg44000}  reg44002=${reg44002}`);
     }
+
+    const todayTotals = await modbus.readTodayTotals();
+    console.log('');
+    console.log(
+      `Today totals (holding ${H1_G2_ENERGY_COUNTERS_START}+, scale 0.1 kWh; foxess_modbus H1 G2 map):`
+    );
+    if (todayTotals.readError) {
+      console.log(`  unavailable: ${todayTotals.readError}`);
+      console.log('  (Some adapters/firmware omit the 32000 energy counter block over LAN.)');
+    } else {
+      for (const total of todayTotals.totals) {
+        console.log(
+          `  ${total.label}: ${formatKwh(total.kwh)}  (reg ${total.register} raw=${formatRaw(total.raw)})`
+        );
+      }
+    }
+
     console.log('OK — inverter Modbus connectivity works');
   } catch (error) {
     console.error(`FAILED: ${formatError(error)}`);

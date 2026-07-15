@@ -12,6 +12,12 @@ import {
   H1_G2_WORK_MODE_REGISTER,
   parseH1G2RealtimeSnapshot,
 } from './h1g2Registers.js';
+import {
+  H1_G2_ENERGY_COUNTERS_LENGTH,
+  H1_G2_ENERGY_COUNTERS_START,
+  parseH1G2TodayTotalsFromBlock,
+  type H1G2TodayTotalsSnapshot,
+} from './h1g2TodayTotals.js';
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
 
 export interface ModbusTcpConfig {
@@ -100,5 +106,28 @@ export class H1G2ModbusClient {
       remoteActivePowerRaw: remoteActivePower,
       sampledAt,
     });
+  }
+
+  async readTodayTotals(sampledAt: string = new Date().toISOString()): Promise<H1G2TodayTotalsSnapshot> {
+    try {
+      const blockRes = await this.client.readHoldingRegisters(
+        H1_G2_ENERGY_COUNTERS_START,
+        H1_G2_ENERGY_COUNTERS_LENGTH
+      );
+      const block = assertRegisterData(
+        blockRes.data,
+        `energy counters ${H1_G2_ENERGY_COUNTERS_START}`
+      );
+      return parseH1G2TodayTotalsFromBlock(block, H1_G2_ENERGY_COUNTERS_START, sampledAt);
+    } catch (error) {
+      return {
+        sampledAt,
+        blockStart: H1_G2_ENERGY_COUNTERS_START,
+        blockLength: H1_G2_ENERGY_COUNTERS_LENGTH,
+        blockRaw: null,
+        totals: [],
+        readError: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
