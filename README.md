@@ -17,13 +17,26 @@ export TUNNEL_TOKEN='eyJ...'                       # from the app
 docker compose up -d
 ```
 
-## Test inverter connectivity (before Docker)
+## Test inverter connectivity
 
-Confirm Modbus works from your LAN before setting up tokens or Docker:
+Confirm Modbus works from your LAN before setting up tokens or Docker.
 
 ```bash
 npm install
+npm run build
 MODBUS_HOST=192.168.1.100 npm run probe
+```
+
+**From Docker**:
+
+```bash
+docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe
+```
+
+If the stack is already running, probe inside the `modbus` container:
+
+```bash
+docker compose exec modbus npm run probe
 ```
 
 ## Development

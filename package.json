@@ -5,10 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run build:telemetry && tsc",
+    "build:telemetry": "tsc -p packages/modbus-telemetry/tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "probe": "tsx src/probe.ts",
+    "probe": "node dist/probe.js",
+    "probe:dev": "tsx src/probe.ts",
+    "seed-db": "tsx scripts/seed-bridge-db.ts",
     "test": "vitest"
   },
   "dependencies": {

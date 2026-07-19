@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./types.ts",
-    "./workMode": "./workMode.ts"
+    ".": {
+      "types": "./types.ts",
+      "default": "./dist/types.js"
+    },
+    "./workMode": {
+      "types": "./workMode.ts",
+      "default": "./dist/workMode.js"
+    }
   }
 }
