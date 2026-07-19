@@ -8,6 +8,8 @@ export interface BridgeConfig {
   httpPort: number;
   dataDir: string;
   bridgeHostname?: string;
+  /** When true, log each Modbus poll and each /v1/realtime request. */
+  verboseLogging: boolean;
 }
 
 function readRequired(name: string): string {
@@ -35,6 +37,14 @@ function readOptional(name: string): string | undefined {
   return value || undefined;
 }
 
+function readBoolean(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 export function loadConfig(): BridgeConfig {
   return {
     bridgeToken: readRequired('CMS_BRIDGE_TOKEN'),
@@ -46,5 +56,6 @@ export function loadConfig(): BridgeConfig {
     httpPort: readInt('BRIDGE_HTTP_PORT', 8080),
     dataDir: process.env.BRIDGE_DATA_DIR?.trim() || '/data',
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
+    verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
   };
 }

@@ -13,6 +13,7 @@ export CMS_BRIDGE_TOKEN='cms_bridge_...'          # from the app
 export MODBUS_HOST='192.168.1.100'              # Modbus adapter IP
 export BRIDGE_HOSTNAME='bridge-....modbus.internal'  # from the app
 export TUNNEL_TOKEN='eyJ...'                       # from the app
+# export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and /v1/realtime request
 docker compose up -d
 ```
 
