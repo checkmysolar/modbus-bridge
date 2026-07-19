@@ -13,11 +13,14 @@ function sleep(ms: number): Promise<void> {
 
 async function runPollCycle(
   modbus: H1G2ModbusClient,
-  store: RealtimeStore
+  store: RealtimeStore,
+  verboseLogging: boolean
 ): Promise<void> {
   const telemetry = await modbus.readRealtimeSnapshot();
   store.upsert(telemetry, telemetry.sampledAt);
-  console.log(formatStoredTelemetryLog(telemetry));
+  if (verboseLogging) {
+    console.log(formatStoredTelemetryLog(telemetry));
+  }
 }
 
 async function main(): Promise<void> {
@@ -27,6 +30,7 @@ async function main(): Promise<void> {
     port: config.httpPort,
     bridgeToken: config.bridgeToken,
     store,
+    verboseLogging: config.verboseLogging,
   });
 
   if (config.bridgeHostname) {
@@ -45,14 +49,25 @@ async function main(): Promise<void> {
   while (true) {
     try {
       await modbus.connect();
+      if (!config.verboseLogging) {
+        console.log(
+          `Modbus connected to ${config.modbusHost}:${config.modbusPort} (unit ${config.modbusUnitId})`
+        );
+      }
       backoffMs = config.pollIntervalMs;
 
       while (true) {
-        await runPollCycle(modbus, store);
+        await runPollCycle(modbus, store, config.verboseLogging);
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {
-      console.error(`Bridge cycle failed: ${formatError(error)}`);
+      if (!config.verboseLogging) {
+        console.error(
+          `Modbus connection failed (${config.modbusHost}:${config.modbusPort}): ${formatError(error)}`
+        );
+      } else {
+        console.error(`Bridge cycle failed: ${formatError(error)}`);
+      }
       try {
         await modbus.close();
       } catch {

@@ -1,15 +1,24 @@
 import http from 'node:http';
 import type { RealtimeStore } from '../storage/sqlite.js';
+import { formatTelemetryPreview } from '../telemetryLog.js';
 import { extractBearerToken, isAuthorized } from './auth.js';
 
 export interface BridgeHttpServerOptions {
   port: number;
   bridgeToken: string;
   store: RealtimeStore;
+  verboseLogging?: boolean;
 }
 
 export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.Server {
-  const { port, bridgeToken, store } = options;
+  const { port, bridgeToken, store, verboseLogging = false } = options;
+
+  const logRealtimeRequest = (status: number, detail?: string) => {
+    if (!verboseLogging) {
+      return;
+    }
+    console.log(detail ? `GET /v1/realtime ${status} — ${detail}` : `GET /v1/realtime ${status}`);
+  };
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
@@ -28,16 +37,20 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
     if (req.method === 'GET' && path === '/v1/realtime') {
       const bearer = extractBearerToken(req);
       if (!isAuthorized(bearer, bridgeToken)) {
+        logRealtimeRequest(401);
         sendJson({ error: 'Unauthorized' }, 401);
         return;
       }
 
       const snapshot = store.getLatest();
       if (!snapshot) {
+        logRealtimeRequest(503);
         sendJson({ error: 'No telemetry snapshot available yet' }, 503);
         return;
       }
 
+      const preview = formatTelemetryPreview(snapshot.telemetry);
+      logRealtimeRequest(200, preview || `sampledAt=${snapshot.sampledAt}`);
       sendJson(
         {
           ...snapshot.telemetry,
