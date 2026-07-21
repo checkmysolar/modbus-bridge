@@ -20,11 +20,29 @@ services:
           - ${BRIDGE_HOSTNAME}
     volumes:
       - bridge_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.7.1
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
+    command: tunnel --metrics 127.0.0.1:60123 --no-autoupdate run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:60123", "ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks:
       - cms_net
 
