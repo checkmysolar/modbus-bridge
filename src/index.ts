@@ -1,4 +1,4 @@
-import { loadConfig } from './config.js';
+import { BRIDGE_HTTP_PORT, loadConfig } from './config.js';
 import { formatError } from './errors.js';
 import { startBridgeHttpServer } from './http/server.js';
 import { H1G2ModbusClient } from './modbus/client.js';
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir);
   startBridgeHttpServer({
-    port: config.httpPort,
+    port: BRIDGE_HTTP_PORT,
     bridgeToken: config.bridgeToken,
     store,
     verboseLogging: config.verboseLogging,
