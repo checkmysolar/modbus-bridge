@@ -24,6 +24,7 @@ async function runPollCycle(
 }
 
 async function main(): Promise<void> {
+  console.log(`Modbus bridge version: ${process.env.BRIDGE_VERSION ?? 'dev'}`);
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir);
   startBridgeHttpServer({

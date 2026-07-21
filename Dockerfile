@@ -15,6 +15,8 @@ RUN npm run build && npm prune --omit=dev
 FROM node:${NODE_VERSION}-alpine AS runner
 WORKDIR /app
 
+ARG BRIDGE_VERSION=dev
+ENV BRIDGE_VERSION=$BRIDGE_VERSION
 ENV NODE_ENV=production
 ENV BRIDGE_DATA_DIR=/data
 
