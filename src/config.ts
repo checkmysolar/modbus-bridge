@@ -1,3 +1,5 @@
+export const BRIDGE_HTTP_PORT = 8080;
+
 export interface BridgeConfig {
   bridgeToken: string;
   modbusHost: string;
@@ -5,7 +7,6 @@ export interface BridgeConfig {
   modbusUnitId: number;
   pollIntervalMs: number;
   modbusTimeoutMs: number;
-  httpPort: number;
   dataDir: string;
   bridgeHostname?: string;
   /** When true, log each Modbus poll and each /v1/realtime request. */
@@ -53,7 +54,6 @@ export function loadConfig(): BridgeConfig {
     modbusUnitId: readInt('MODBUS_UNIT_ID', 247),
     pollIntervalMs: readInt('POLL_INTERVAL_MS', 10_000),
     modbusTimeoutMs: readInt('MODBUS_TIMEOUT_MS', 5_000),
-    httpPort: readInt('BRIDGE_HTTP_PORT', 8080),
     dataDir: process.env.BRIDGE_DATA_DIR?.trim() || '/data',
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
     verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
