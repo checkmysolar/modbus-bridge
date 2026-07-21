@@ -9,6 +9,7 @@ import {
   H1_G2_STATE_STATUS3_REGISTER,
   H1_G2_REMOTE_ACTIVE_POWER_REGISTER,
   H1_G2_REMOTE_ENABLE_REGISTER,
+  H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER,
   H1_G2_WORK_MODE_REGISTER,
   parseH1G2RealtimeSnapshot,
 } from './h1g2Registers.js';
@@ -34,6 +35,10 @@ interface ModbusClient {
   setTimeout(timeoutMs: number): void;
   close(callback: () => void): void;
   readHoldingRegisters(
+    dataAddress: number,
+    length: number
+  ): Promise<{ data: number[] }>;
+  readInputRegisters(
     dataAddress: number,
     length: number
   ): Promise<{ data: number[] }>;
@@ -64,7 +69,7 @@ export class H1G2ModbusClient {
   }
 
   async readRealtimeSnapshot(sampledAt: string = new Date().toISOString()): Promise<ModbusRealtimeTelemetry> {
-    const [blockRes, residualRes, pv1Res, pv2Res, stateRes, workModeRes, remoteEnableRes, remoteActivePowerRes] =
+    const [blockRes, residualRes, pv1Res, pv2Res, stateRes, workModeRes, remoteEnableRes, remoteActivePowerRes, remoteTimeoutRes] =
       await Promise.all([
       this.client.readHoldingRegisters(H1_G2_BLOCK_START, H1_G2_BLOCK_LENGTH),
       this.client.readHoldingRegisters(H1_G2_RESIDUAL_ENERGY_REGISTER, 1),
@@ -74,6 +79,9 @@ export class H1G2ModbusClient {
       this.client.readHoldingRegisters(H1_G2_WORK_MODE_REGISTER, 1).catch(() => null),
       this.client.readHoldingRegisters(H1_G2_REMOTE_ENABLE_REGISTER, 1).catch(() => null),
       this.client.readHoldingRegisters(H1_G2_REMOTE_ACTIVE_POWER_REGISTER, 1).catch(() => null),
+      this.client
+        .readInputRegisters(H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER, 1)
+        .catch(() => null),
     ]);
 
     const block = assertRegisterData(blockRes.data, `block ${H1_G2_BLOCK_START}`);
@@ -93,6 +101,10 @@ export class H1G2ModbusClient {
       remoteActivePowerRes && remoteActivePowerRes.data?.length
         ? assertRegisterData(remoteActivePowerRes.data, 'remote active power')[0]
         : undefined;
+    const remoteTimeoutCountdown =
+      remoteTimeoutRes && remoteTimeoutRes.data?.length
+        ? assertRegisterData(remoteTimeoutRes.data, 'remote timeout countdown')[0]
+        : undefined;
 
     return parseH1G2RealtimeSnapshot({
       block,
@@ -104,6 +116,7 @@ export class H1G2ModbusClient {
       workModeRaw: workMode,
       remoteEnableRaw: remoteEnable,
       remoteActivePowerRaw: remoteActivePower,
+      remoteTimeoutCountdownRaw: remoteTimeoutCountdown,
       sampledAt,
     });
   }

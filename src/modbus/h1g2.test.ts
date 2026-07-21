@@ -95,7 +95,7 @@ describe('H1 G2 register parsing', () => {
     expect(snapshot.workModeRegister).toBe(4);
   });
 
-  it('shows force charge when remote control is active with negative active power', () => {
+  it('shows force charge when remote control watchdog is active with negative active power', () => {
     const block = new Array(21).fill(0);
     const snapshot = parseH1G2RealtimeSnapshot({
       block,
@@ -107,11 +107,32 @@ describe('H1 G2 register parsing', () => {
       workModeRaw: 0,
       remoteEnableRaw: 1,
       remoteActivePowerRaw: 65536 - 1500,
+      remoteTimeoutCountdownRaw: 15,
       sampledAt: '2026-07-09T12:00:00.000Z',
     });
 
     expect(snapshot.workMode).toBe(3);
     expect(snapshot.remoteEnable).toBe(1);
     expect(snapshot.remoteActivePowerW).toBe(-1500);
+    expect(snapshot.remoteTimeoutCountdown).toBe(15);
+  });
+
+  it('uses configured work mode when remote active power is stale after timeout', () => {
+    const block = new Array(21).fill(0);
+    const snapshot = parseH1G2RealtimeSnapshot({
+      block,
+      residualEnergyRaw: 0,
+      pv1PowerRaw: 0,
+      pv2PowerRaw: 0,
+      stateStatus1: 0x04,
+      stateStatus3: 0x00,
+      workModeRaw: 1,
+      remoteEnableRaw: 1,
+      remoteActivePowerRaw: 65536 - 2500,
+      remoteTimeoutCountdownRaw: 0,
+      sampledAt: '2026-07-09T12:00:00.000Z',
+    });
+
+    expect(snapshot.workMode).toBe(1);
   });
 });
