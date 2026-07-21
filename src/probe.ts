@@ -66,14 +66,19 @@ async function main(): Promise<void> {
     if (
       telemetry.workModeRegister !== undefined ||
       telemetry.remoteEnable !== undefined ||
-      telemetry.remoteActivePowerW !== undefined
+      telemetry.remoteActivePowerW !== undefined ||
+      telemetry.remoteTimeoutCountdown !== undefined
     ) {
       const reg41000 =
         telemetry.workModeRegister !== undefined ? String(telemetry.workModeRegister) : 'n/a';
       const reg44000 = telemetry.remoteEnable !== undefined ? String(telemetry.remoteEnable) : 'n/a';
       const reg44002 =
         telemetry.remoteActivePowerW !== undefined ? `${telemetry.remoteActivePowerW} W` : 'n/a';
-      console.log(`  reg41000=${reg41000}  reg44000=${reg44000}  reg44002=${reg44002}`);
+      const reg44004 =
+        telemetry.remoteTimeoutCountdown !== undefined
+          ? `${telemetry.remoteTimeoutCountdown} s`
+          : 'n/a';
+      console.log(`  reg41000=${reg41000}  reg44000=${reg44000}  reg44002=${reg44002}  reg44004=${reg44004}`);
     }
 
     const todayTotals = await modbus.readTodayTotals();

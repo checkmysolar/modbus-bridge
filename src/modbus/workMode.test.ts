@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  WORK_MODE_FEED_IN,
   WORK_MODE_FORCE_CHARGE,
   WORK_MODE_FORCE_DISCHARGE,
   WORK_MODE_PEAK_SHAVING,
@@ -16,24 +17,47 @@ describe('resolveH1G2WorkMode', () => {
     expect(resolveH1G2WorkMode({ workModeRegister: 4 })).toBe(WORK_MODE_PEAK_SHAVING);
   });
 
-  it('prefers remote control force charge when enabled with negative active power', () => {
+  it('prefers remote control force charge when the watchdog countdown is active', () => {
     expect(
       resolveH1G2WorkMode({
         workModeRegister: 0,
         remoteEnable: 1,
         remoteActivePowerRaw: 65536 - 3000,
+        remoteTimeoutCountdown: 12,
       })
     ).toBe(WORK_MODE_FORCE_CHARGE);
   });
 
-  it('prefers remote control force discharge when enabled with positive active power', () => {
+  it('prefers remote control force discharge when the watchdog countdown is active', () => {
     expect(
       resolveH1G2WorkMode({
         workModeRegister: 0,
         remoteEnable: 1,
         remoteActivePowerRaw: 2500,
+        remoteTimeoutCountdown: 8,
       })
     ).toBe(WORK_MODE_FORCE_DISCHARGE);
+  });
+
+  it('uses the configured work mode when remote active power is stale after timeout', () => {
+    expect(
+      resolveH1G2WorkMode({
+        workModeRegister: WORK_MODE_FEED_IN,
+        remoteEnable: 1,
+        remoteActivePowerRaw: 65536 - 2500,
+        remoteTimeoutCountdown: 0,
+      })
+    ).toBe(WORK_MODE_FEED_IN);
+  });
+
+  it('uses the configured work mode when the timeout countdown is unavailable', () => {
+    expect(
+      resolveH1G2WorkMode({
+        workModeRegister: 1,
+        remoteEnable: 1,
+        remoteActivePowerRaw: 65536 - 2500,
+      })
+    ).toBe(WORK_MODE_FEED_IN);
   });
 
   it('falls back to work mode register when remote control is enabled but active power is zero', () => {
@@ -42,6 +66,7 @@ describe('resolveH1G2WorkMode', () => {
         workModeRegister: 4,
         remoteEnable: 1,
         remoteActivePowerRaw: 0,
+        remoteTimeoutCountdown: 10,
       })
     ).toBe(WORK_MODE_PEAK_SHAVING);
   });

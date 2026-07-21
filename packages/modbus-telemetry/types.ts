@@ -35,5 +35,7 @@ export interface ModbusRealtimeTelemetry {
   remoteEnable?: number;
   /** Raw signed active power setpoint from register 44002 (watts). */
   remoteActivePowerW?: number;
+  /** Input register 44004 remote timeout countdown (seconds remaining). */
+  remoteTimeoutCountdown?: number;
   sampledAt: string;
 }

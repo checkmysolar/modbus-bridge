@@ -11,6 +11,8 @@ export const H1_G2_STATE_STATUS3_REGISTER = 39065;
 export const H1_G2_WORK_MODE_REGISTER = 41000;
 export const H1_G2_REMOTE_ENABLE_REGISTER = 44000;
 export const H1_G2_REMOTE_ACTIVE_POWER_REGISTER = 44002;
+/** Input register: seconds remaining on the remote-control watchdog. */
+export const H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER = 44004;
 
 /** Fox runningState codes (docs/fox-api.md). */
 export const RUNNING_STATE_ON_GRID = 163;
@@ -84,6 +86,7 @@ export interface H1G2RegisterInputs {
   workModeRaw?: number;
   remoteEnableRaw?: number;
   remoteActivePowerRaw?: number;
+  remoteTimeoutCountdownRaw?: number;
   sampledAt: string;
 }
 
@@ -135,12 +138,16 @@ export function parseH1G2RealtimeSnapshot(input: H1G2RegisterInputs): ModbusReal
         workModeRegister: input.workModeRaw,
         remoteEnable: input.remoteEnableRaw,
         remoteActivePowerRaw: input.remoteActivePowerRaw,
+        remoteTimeoutCountdown: input.remoteTimeoutCountdownRaw,
       });
       return {
         ...(input.workModeRaw !== undefined ? { workModeRegister: input.workModeRaw } : {}),
         ...(input.remoteEnableRaw !== undefined ? { remoteEnable: input.remoteEnableRaw } : {}),
         ...(input.remoteActivePowerRaw !== undefined
           ? { remoteActivePowerW: toSignedInt16(input.remoteActivePowerRaw) }
+          : {}),
+        ...(input.remoteTimeoutCountdownRaw !== undefined
+          ? { remoteTimeoutCountdown: input.remoteTimeoutCountdownRaw }
           : {}),
         ...(workMode !== undefined ? { workMode } : {}),
       };

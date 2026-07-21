@@ -28,26 +28,7 @@ export function toSignedInt16(raw: number): number {
   return raw >= 0x8000 ? raw - 0x10000 : raw;
 }
 
-/**
- * Resolve the effective work mode for H1 G2 from Modbus registers.
- * Remote control (44000/44002) overrides the work-mode register when active.
- */
-export function resolveH1G2WorkMode(inputs: {
-  workModeRegister?: number;
-  remoteEnable?: number;
-  remoteActivePowerRaw?: number;
-}): number | undefined {
-  if (inputs.remoteEnable === 1 && inputs.remoteActivePowerRaw !== undefined) {
-    const activePower = toSignedInt16(inputs.remoteActivePowerRaw);
-    if (activePower < 0) {
-      return WORK_MODE_FORCE_CHARGE;
-    }
-    if (activePower > 0) {
-      return WORK_MODE_FORCE_DISCHARGE;
-    }
-  }
-
-  const raw = inputs.workModeRegister;
+function mapWorkModeRegister(raw: number | undefined): number | undefined {
   if (raw === undefined) {
     return undefined;
   }
@@ -64,6 +45,38 @@ export function resolveH1G2WorkMode(inputs: {
     default:
       return undefined;
   }
+}
+
+/**
+ * Resolve the effective work mode for H1 G2 from Modbus registers.
+ * Register 41000 is the configured work mode. Remote control (44000/44002) only
+ * overrides it while the remote timeout countdown (input 44004) is still running;
+ * stale active-power setpoints are ignored after the watchdog expires.
+ */
+export function resolveH1G2WorkMode(inputs: {
+  workModeRegister?: number;
+  remoteEnable?: number;
+  remoteActivePowerRaw?: number;
+  remoteTimeoutCountdown?: number;
+}): number | undefined {
+  const configuredWorkMode = mapWorkModeRegister(inputs.workModeRegister);
+
+  if (
+    inputs.remoteEnable === 1 &&
+    inputs.remoteTimeoutCountdown !== undefined &&
+    inputs.remoteTimeoutCountdown > 0 &&
+    inputs.remoteActivePowerRaw !== undefined
+  ) {
+    const activePower = toSignedInt16(inputs.remoteActivePowerRaw);
+    if (activePower < 0) {
+      return WORK_MODE_FORCE_CHARGE;
+    }
+    if (activePower > 0) {
+      return WORK_MODE_FORCE_DISCHARGE;
+    }
+  }
+
+  return configuredWorkMode;
 }
 
 export function foxWorkModeSettingToCode(
