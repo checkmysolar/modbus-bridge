@@ -125,15 +125,28 @@ function mapDailyRow(row: DailyRowDb): DayDailyRow {
   };
 }
 
+export interface RealtimeStoreOptions {
+  verboseLogging?: boolean;
+}
+
 export class RealtimeStore {
   private readonly db: Database.Database;
+  private readonly verboseLogging: boolean;
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, options: RealtimeStoreOptions = {}) {
     fs.mkdirSync(dataDir, { recursive: true });
     const dbPath = path.join(dataDir, 'bridge.db');
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(SCHEMA);
+    this.verboseLogging = options.verboseLogging ?? false;
+  }
+
+  private logWrite(operation: string, detail?: string): void {
+    if (!this.verboseLogging) {
+      return;
+    }
+    console.log(detail ? `SQLite write: ${operation} — ${detail}` : `SQLite write: ${operation}`);
   }
 
   upsert(telemetry: ModbusRealtimeTelemetry, sampledAt: string): void {
@@ -148,6 +161,7 @@ export class RealtimeStore {
            updated_at = excluded.updated_at`
       )
       .run(JSON.stringify(telemetry), sampledAt, updatedAt);
+    this.logWrite('upsert realtime_snapshot', `sampledAt=${sampledAt}`);
   }
 
   getLatest(): RealtimeSnapshot | null {
@@ -182,6 +196,7 @@ export class RealtimeStore {
            updated_at = excluded.updated_at`
       )
       .run(JSON.stringify(totals), sampledAt, updatedAt);
+    this.logWrite('upsert today_totals_snapshot', `sampledAt=${sampledAt}`);
   }
 
   getLatestTodayTotals(): TodayTotalsSnapshot | null {
@@ -218,6 +233,7 @@ export class RealtimeStore {
          ON CONFLICT(local_date, hour) DO NOTHING`
       )
       .run(localDate, hour, JSON.stringify(counters), updatedAt);
+    this.logWrite('ensureOpenHour', `localDate=${localDate} hour=${hour}`);
   }
 
   addHourMetrics(localDate: string, hour: number, deltas: KwhMetrics): void {
@@ -245,6 +261,10 @@ export class RealtimeStore {
         localDate,
         hour
       );
+    this.logWrite(
+      'addHourMetrics',
+      `localDate=${localDate} hour=${hour} pv=${deltas.pv_kwh} loads=${deltas.loads_kwh}`
+    );
   }
 
   addSocSample(localDate: string, hour: number, soc: number): void {
@@ -257,6 +277,7 @@ export class RealtimeStore {
          WHERE local_date = ? AND hour = ?`
       )
       .run(soc, updatedAt, localDate, hour);
+    this.logWrite('addSocSample', `localDate=${localDate} hour=${hour} soc=${soc}`);
   }
 
   incrementHourSampleCount(localDate: string, hour: number): void {
@@ -269,6 +290,7 @@ export class RealtimeStore {
          WHERE local_date = ? AND hour = ?`
       )
       .run(updatedAt, localDate, hour);
+    this.logWrite('incrementHourSampleCount', `localDate=${localDate} hour=${hour}`);
   }
 
   getHourRow(
@@ -345,6 +367,7 @@ export class RealtimeStore {
         localDate,
         hour
       );
+    this.logWrite('setHourMetrics', `localDate=${localDate} hour=${hour}`);
   }
 
   markHourFinalized(localDate: string, hour: number): void {
@@ -354,6 +377,7 @@ export class RealtimeStore {
         `UPDATE day_hourly SET finalized = 1, updated_at = ? WHERE local_date = ? AND hour = ?`
       )
       .run(updatedAt, localDate, hour);
+    this.logWrite('markHourFinalized', `localDate=${localDate} hour=${hour}`);
   }
 
   upsertDailyRollup(localDate: string): void {
@@ -397,6 +421,7 @@ export class RealtimeStore {
         row.bat_discharge_kwh,
         updatedAt
       );
+    this.logWrite('upsertDailyRollup', `localDate=${localDate}`);
   }
 
   getHoursForDay(localDate: string): DayHourlyRow[] {
@@ -455,10 +480,12 @@ export class RealtimeStore {
     this.db
       .prepare('INSERT OR REPLACE INTO samples (ts, telemetry_json) VALUES (?, ?)')
       .run(ts, JSON.stringify(telemetry));
+    this.logWrite('insertSample', `ts=${ts}`);
   }
 
   pruneSamplesOlderThan(cutoffIso: string): void {
-    this.db.prepare('DELETE FROM samples WHERE ts < ?').run(cutoffIso);
+    const result = this.db.prepare('DELETE FROM samples WHERE ts < ?').run(cutoffIso);
+    this.logWrite('pruneSamplesOlderThan', `cutoff=${cutoffIso} deleted=${result.changes}`);
   }
 
   close(): void {
