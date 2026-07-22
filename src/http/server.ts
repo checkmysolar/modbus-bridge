@@ -20,6 +20,15 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
     console.log(detail ? `GET /v1/realtime ${status} — ${detail}` : `GET /v1/realtime ${status}`);
   };
 
+  const logTodayTotalsRequest = (status: number, detail?: string) => {
+    if (!verboseLogging) {
+      return;
+    }
+    console.log(
+      detail ? `GET /v1/today-totals ${status} — ${detail}` : `GET /v1/today-totals ${status}`
+    );
+  };
+
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
     const path = url.pathname;
@@ -54,6 +63,33 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
       sendJson(
         {
           ...snapshot.telemetry,
+          sampledAt: snapshot.sampledAt,
+          receivedAt: snapshot.updatedAt,
+        },
+        200
+      );
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/today-totals') {
+      const bearer = extractBearerToken(req);
+      if (!isAuthorized(bearer, bridgeToken)) {
+        logTodayTotalsRequest(401);
+        sendJson({ error: 'Unauthorized' }, 401);
+        return;
+      }
+
+      const snapshot = store.getLatestTodayTotals();
+      if (!snapshot) {
+        logTodayTotalsRequest(503);
+        sendJson({ error: 'No today totals snapshot available yet' }, 503);
+        return;
+      }
+
+      logTodayTotalsRequest(200, `sampledAt=${snapshot.sampledAt}`);
+      sendJson(
+        {
+          ...snapshot.totals,
           sampledAt: snapshot.sampledAt,
           receivedAt: snapshot.updatedAt,
         },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeTodayTotalRaw,
   H1_G2_ENERGY_COUNTERS_START,
+  mapH1G2TodayTotalsSnapshotToFoxShape,
   parseH1G2TodayTotalsFromBlock,
 } from './h1g2TodayTotals.js';
 
@@ -37,5 +38,25 @@ describe('H1 G2 today totals parsing', () => {
     expect(byKey.inputEnergy).toBeCloseTo(0.3);
     expect(byKey.loadEnergy).toBeCloseTo(8);
     expect(snapshot.sampledAt).toBe('2026-07-15T12:00:00.000Z');
+  });
+
+  it('maps parsed snapshot to Fox-shaped today totals', () => {
+    const block = new Array(24).fill(0);
+    block[2] = 150;
+    block[5] = 40;
+    block[8] = 30;
+    block[11] = 20;
+    block[14] = 10;
+    block[23] = 80;
+
+    const snapshot = parseH1G2TodayTotalsFromBlock(block, H1_G2_ENERGY_COUNTERS_START);
+    expect(mapH1G2TodayTotalsSnapshotToFoxShape(snapshot)).toEqual({
+      generation: 15,
+      feedin: 2,
+      gridConsumption: 1,
+      chargeEnergyToTal: 4,
+      dischargeEnergyToTal: 3,
+      loadConsumption: 8,
+    });
   });
 });

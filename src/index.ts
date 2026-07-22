@@ -2,6 +2,7 @@ import { BRIDGE_HTTP_PORT, loadConfig } from './config.js';
 import { formatError } from './errors.js';
 import { startBridgeHttpServer } from './http/server.js';
 import { H1G2ModbusClient } from './modbus/client.js';
+import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
 import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
 
@@ -16,8 +17,17 @@ async function runPollCycle(
   store: RealtimeStore,
   verboseLogging: boolean
 ): Promise<void> {
-  const telemetry = await modbus.readRealtimeSnapshot();
+  const sampledAt = new Date().toISOString();
+  const [telemetry, todayTotalsSnapshot] = await Promise.all([
+    modbus.readRealtimeSnapshot(sampledAt),
+    modbus.readTodayTotals(sampledAt),
+  ]);
+
   store.upsert(telemetry, telemetry.sampledAt);
+  const todayTotals = mapH1G2TodayTotalsSnapshotToFoxShape(todayTotalsSnapshot);
+  if (todayTotals) {
+    store.upsertTodayTotals(todayTotals, todayTotalsSnapshot.sampledAt);
+  }
   if (verboseLogging) {
     console.log(formatStoredTelemetryLog(telemetry));
   }

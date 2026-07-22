@@ -46,6 +46,57 @@ export function decodeTodayTotalRaw(raw: number, signed = false): number {
   return value * H1_G2_TODAY_TOTALS_SCALE;
 }
 
+/** Fox Cloud-shaped daily totals (kWh) for Check My Solar API compatibility. */
+export interface FoxShapedTodayTotals {
+  generation: number;
+  feedin: number;
+  gridConsumption: number;
+  chargeEnergyToTal: number;
+  dischargeEnergyToTal: number;
+  loadConsumption: number;
+}
+
+function kwhForKey(snapshot: H1G2TodayTotalsSnapshot, key: string): number | null {
+  const reading = snapshot.totals.find((total) => total.key === key);
+  return reading?.kwh ?? null;
+}
+
+/** Map H1 G2 daily counter snapshot to Fox-shaped totals; null when read failed or incomplete. */
+export function mapH1G2TodayTotalsSnapshotToFoxShape(
+  snapshot: H1G2TodayTotalsSnapshot
+): FoxShapedTodayTotals | null {
+  if (snapshot.readError) {
+    return null;
+  }
+
+  const generation = kwhForKey(snapshot, 'solarGeneration');
+  const feedin = kwhForKey(snapshot, 'feedIn');
+  const gridConsumption = kwhForKey(snapshot, 'gridConsumption');
+  const chargeEnergyToTal = kwhForKey(snapshot, 'batteryCharge');
+  const dischargeEnergyToTal = kwhForKey(snapshot, 'batteryDischarge');
+  const loadConsumption = kwhForKey(snapshot, 'loadEnergy');
+
+  if (
+    generation === null ||
+    feedin === null ||
+    gridConsumption === null ||
+    chargeEnergyToTal === null ||
+    dischargeEnergyToTal === null ||
+    loadConsumption === null
+  ) {
+    return null;
+  }
+
+  return {
+    generation,
+    feedin,
+    gridConsumption,
+    chargeEnergyToTal,
+    dischargeEnergyToTal,
+    loadConsumption,
+  };
+}
+
 export function parseH1G2TodayTotalsFromBlock(
   block: number[],
   blockStart: number = H1_G2_ENERGY_COUNTERS_START,
