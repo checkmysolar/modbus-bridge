@@ -17,6 +17,8 @@ export TUNNEL_TOKEN='eyJ...'                       # from the app
 docker compose up -d
 ```
 
+
+
 ## Test inverter connectivity
 
 Confirm Modbus works from your LAN before setting up tokens or Docker.
@@ -39,6 +41,8 @@ If the stack is already running, probe inside the `modbus` container:
 docker compose exec modbus npm run probe
 ```
 
+
+
 ## Development
 
 ```bash
@@ -46,3 +50,9 @@ npm install
 npm test
 npm run build
 ```
+
+
+
+## Acknowledgements
+
+The Modbus register maps and inverter logic in this bridge are adapted from **[foxess_modbus](https://github.com/nathanmarlor/foxess_modbus)** - a community Home Assistant integration. Thanks to [Nathan Marlor](https://github.com/nathanmarlor) and everyone who contributes to that project.
