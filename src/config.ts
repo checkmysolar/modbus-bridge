@@ -9,7 +9,7 @@ export interface BridgeConfig {
   dataDir: string;
   siteTimezone: string;
   bridgeHostname?: string;
-  /** When true, log each Modbus poll and each /v1/realtime request. */
+  /** When true, log each Modbus poll and each HTTP request. */
   verboseLogging: boolean;
 }
 

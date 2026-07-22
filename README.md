@@ -14,7 +14,7 @@ export MODBUS_HOST='192.168.1.100'              # Modbus adapter IP
 export BRIDGE_HOSTNAME='bridge-....modbus.internal'  # from the app
 export TUNNEL_TOKEN='eyJ...'                       # from the app
 export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour buckets
-# export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and /v1/realtime request
+# export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and HTTP request
 docker compose up -d
 ```
 
