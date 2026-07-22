@@ -1,8 +1,8 @@
 /**
  * One-shot Modbus connectivity check for H1 G2 realtime snapshot.
  *
- * Usage (local, after build):
- *   MODBUS_HOST=192.168.1.100 npm run probe
+ * Usage (local):
+ *   npm run build && MODBUS_HOST=192.168.1.100 npm run probe
  *
  * Usage (Docker one-off):
  *   docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe

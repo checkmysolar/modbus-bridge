@@ -18,14 +18,13 @@ export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour bucke
 docker compose up -d
 ```
 
-
-
 ## Test inverter connectivity
 
 Confirm Modbus works from your LAN before setting up tokens or Docker:
 
 ```bash
 npm install
+npm run build
 MODBUS_HOST=192.168.1.100 npm run probe
 ```
 
@@ -40,7 +39,6 @@ If the stack is already running, probe inside the `modbus` container:
 ```bash
 docker compose exec modbus npm run probe
 ```
-
 
 
 ## Development
