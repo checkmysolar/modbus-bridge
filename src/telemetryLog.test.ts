@@ -3,6 +3,7 @@ import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
 import {
   countTelemetryMetrics,
   formatStoredTelemetryLog,
+  formatTelemetryFull,
   formatTelemetryPreview,
 } from './telemetryLog.js';
 
@@ -51,5 +52,22 @@ describe('telemetryLog', () => {
     expect(formatStoredTelemetryLog(sampleTelemetry)).toBe(
       'Stored telemetry: 24 metrics — loads=1.234 kW, pv=2.500 kW, soc=87%, feedin=0.500 kW'
     );
+  });
+
+  it('formats every realtime telemetry field for probe output', () => {
+    const lines = formatTelemetryFull(sampleTelemetry);
+    expect(lines).toContain('loadsPower=1.234 kW');
+    expect(lines).toContain('pvPower=2.500 kW');
+    expect(lines).toContain('pv1Power=1.500 kW');
+    expect(lines).toContain('pv2Power=1.000 kW');
+    expect(lines).toContain('pvStringCount=2');
+    expect(lines).toContain('pvStringPowers.pv1Power=1.500 kW');
+    expect(lines).toContain('pvStringPowers.pv2Power=1.000 kW');
+    expect(lines).toContain('batVoltage=51.2 V');
+    expect(lines).toContain('gridFrequency=50.01 Hz');
+    expect(lines).toContain('workMode=Backup (code 2)');
+    expect(lines).toContain('workModeRegister=unavailable');
+    expect(lines).toContain('sampledAt=2026-07-14T12:00:00.000Z');
+    expect(lines.length).toBe(34);
   });
 });

@@ -10,7 +10,7 @@
 import { formatError } from './errors.js';
 import { H1G2ModbusClient } from './modbus/client.js';
 import { H1_G2_ENERGY_COUNTERS_START } from './modbus/h1g2TodayTotals.js';
-import { workModeCodeToLabel } from '@checkmysolar/modbus-telemetry/workMode';
+import { formatTelemetryFull } from './telemetryLog.js';
 
 function formatKwh(value: number | null): string {
   return value === null ? 'unavailable' : `${value.toFixed(2)} kWh`;
@@ -53,32 +53,8 @@ async function main(): Promise<void> {
 
     const telemetry = await modbus.readRealtimeSnapshot();
     console.log('Realtime snapshot:');
-    console.log(`  loadsPower=${telemetry.loadsPower.toFixed(3)} kW`);
-    console.log(`  pvPower=${telemetry.pvPower.toFixed(3)} kW (pv1=${telemetry.pv1Power.toFixed(3)}, pv2=${telemetry.pv2Power.toFixed(3)})`);
-    console.log(`  SoC=${telemetry.SoC}%  ResidualEnergy=${telemetry.ResidualEnergy.toFixed(2)} kWh`);
-    console.log(`  feedin=${telemetry.feedinPower.toFixed(3)} kW  gridConsumption=${telemetry.gridConsumptionPower.toFixed(3)} kW`);
-    console.log(`  batCharge=${telemetry.batChargePower.toFixed(3)} kW  batDischarge=${telemetry.batDischargePower.toFixed(3)} kW`);
-    if (telemetry.workMode !== undefined) {
-      console.log(`  workMode=${workModeCodeToLabel(telemetry.workMode)} (code ${telemetry.workMode})`);
-    } else {
-      console.log('  workMode=unavailable');
-    }
-    if (
-      telemetry.workModeRegister !== undefined ||
-      telemetry.remoteEnable !== undefined ||
-      telemetry.remoteActivePowerW !== undefined ||
-      telemetry.remoteTimeoutCountdown !== undefined
-    ) {
-      const reg41000 =
-        telemetry.workModeRegister !== undefined ? String(telemetry.workModeRegister) : 'n/a';
-      const reg44000 = telemetry.remoteEnable !== undefined ? String(telemetry.remoteEnable) : 'n/a';
-      const reg44002 =
-        telemetry.remoteActivePowerW !== undefined ? `${telemetry.remoteActivePowerW} W` : 'n/a';
-      const reg44004 =
-        telemetry.remoteTimeoutCountdown !== undefined
-          ? `${telemetry.remoteTimeoutCountdown} s`
-          : 'n/a';
-      console.log(`  reg41000=${reg41000}  reg44000=${reg44000}  reg44002=${reg44002}  reg44004=${reg44004}`);
+    for (const line of formatTelemetryFull(telemetry)) {
+      console.log(`  ${line}`);
     }
 
     const todayTotals = await modbus.readTodayTotals();

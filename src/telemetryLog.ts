@@ -1,4 +1,5 @@
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
+import { workModeCodeToLabel } from '@checkmysolar/modbus-telemetry/workMode';
 
 const PREVIEW_FIELDS: Array<{ key: keyof ModbusRealtimeTelemetry; label: string }> = [
   { key: 'loadsPower', label: 'loads' },
@@ -7,7 +8,45 @@ const PREVIEW_FIELDS: Array<{ key: keyof ModbusRealtimeTelemetry; label: string 
   { key: 'feedinPower', label: 'feedin' },
 ];
 
+const TELEMETRY_FIELDS: Array<keyof ModbusRealtimeTelemetry> = [
+  'loadsPower',
+  'pvPower',
+  'pv1Power',
+  'pv2Power',
+  'pvStringCount',
+  'feedinPower',
+  'gridConsumptionPower',
+  'batChargePower',
+  'batDischargePower',
+  'meterPower2',
+  'SoC',
+  'ResidualEnergy',
+  'batVoltage',
+  'batCurrent',
+  'batTemperature',
+  'gridVoltage',
+  'gridCurrent',
+  'gridFrequency',
+  'ambientTemperature',
+  'deviceTemperature',
+  'runningState',
+  'isOffGrid',
+  'epsPower',
+  'epsPowerR',
+  'epsVoltR',
+  'epsCurrentR',
+  'workMode',
+  'workModeRegister',
+  'remoteEnable',
+  'remoteActivePowerW',
+  'remoteTimeoutCountdown',
+  'sampledAt',
+];
+
 function formatMetricValue(key: string, value: unknown): string {
+  if (typeof value === 'boolean') {
+    return String(value);
+  }
   if (typeof value !== 'number') {
     return String(value);
   }
@@ -35,7 +74,34 @@ function formatMetricValue(key: string, value: unknown): string {
   if (key === 'remoteActivePowerW') {
     return `${value} W`;
   }
+  if (key === 'remoteTimeoutCountdown') {
+    return `${value} s`;
+  }
   return String(value);
+}
+
+function formatTelemetryField(key: keyof ModbusRealtimeTelemetry, value: unknown): string {
+  if (value === undefined) {
+    return 'unavailable';
+  }
+  if (key === 'workMode' && typeof value === 'number') {
+    return `${workModeCodeToLabel(value)} (code ${value})`;
+  }
+  return formatMetricValue(key, value);
+}
+
+export function formatTelemetryFull(telemetry: ModbusRealtimeTelemetry): string[] {
+  const lines: string[] = [];
+
+  for (const key of TELEMETRY_FIELDS) {
+    lines.push(`${key}=${formatTelemetryField(key, telemetry[key])}`);
+  }
+
+  for (const [stringKey, power] of Object.entries(telemetry.pvStringPowers)) {
+    lines.push(`pvStringPowers.${stringKey}=${formatMetricValue('pv1Power', power)}`);
+  }
+
+  return lines;
 }
 
 export function countTelemetryMetrics(telemetry: ModbusRealtimeTelemetry): number {
