@@ -1,5 +1,3 @@
-export const BRIDGE_HTTP_PORT = 8080;
-
 export interface BridgeConfig {
   bridgeToken: string;
   modbusHost: string;
@@ -7,7 +5,9 @@ export interface BridgeConfig {
   modbusUnitId: number;
   pollIntervalMs: number;
   modbusTimeoutMs: number;
+  httpPort: number;
   dataDir: string;
+  siteTimezone: string;
   bridgeHostname?: string;
   /** When true, log each Modbus poll and each /v1/realtime request. */
   verboseLogging: boolean;
@@ -46,6 +46,16 @@ function readBoolean(name: string, fallback: boolean): boolean {
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 }
 
+function readTimezone(name: string): string {
+  const value = readRequired(name);
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+  } catch {
+    throw new Error(`Invalid IANA timezone for ${name}: ${value}`);
+  }
+  return value;
+}
+
 export function loadConfig(): BridgeConfig {
   return {
     bridgeToken: readRequired('CMS_BRIDGE_TOKEN'),
@@ -54,7 +64,9 @@ export function loadConfig(): BridgeConfig {
     modbusUnitId: readInt('MODBUS_UNIT_ID', 247),
     pollIntervalMs: readInt('POLL_INTERVAL_MS', 10_000),
     modbusTimeoutMs: readInt('MODBUS_TIMEOUT_MS', 5_000),
+    httpPort: readInt('BRIDGE_HTTP_PORT', 8080),
     dataDir: process.env.BRIDGE_DATA_DIR?.trim() || '/data',
+    siteTimezone: readTimezone('SITE_TIMEZONE'),
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
     verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
   };

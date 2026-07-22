@@ -1,5 +1,6 @@
-import { BRIDGE_HTTP_PORT, loadConfig } from './config.js';
+import { loadConfig } from './config.js';
 import { formatError } from './errors.js';
+import { HourlyAggregator } from './aggregation/hourlyAggregator.js';
 import { startBridgeHttpServer } from './http/server.js';
 import { H1G2ModbusClient } from './modbus/client.js';
 import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
@@ -15,6 +16,7 @@ function sleep(ms: number): Promise<void> {
 async function runPollCycle(
   modbus: H1G2ModbusClient,
   store: RealtimeStore,
+  aggregator: HourlyAggregator,
   verboseLogging: boolean
 ): Promise<void> {
   const sampledAt = new Date().toISOString();
@@ -28,6 +30,7 @@ async function runPollCycle(
   if (todayTotals) {
     store.upsertTodayTotals(todayTotals, todayTotalsSnapshot.sampledAt);
   }
+  aggregator.recordSample(telemetry, todayTotalsSnapshot, telemetry.sampledAt);
   if (verboseLogging) {
     console.log(formatStoredTelemetryLog(telemetry));
   }
@@ -37,16 +40,21 @@ async function main(): Promise<void> {
   console.log(`Modbus bridge version: ${process.env.BRIDGE_VERSION ?? 'dev'}`);
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir);
+  const aggregator = new HourlyAggregator(store, config.siteTimezone);
+
   startBridgeHttpServer({
-    port: BRIDGE_HTTP_PORT,
+    port: config.httpPort,
     bridgeToken: config.bridgeToken,
+    siteTimezone: config.siteTimezone,
     store,
+    aggregator,
     verboseLogging: config.verboseLogging,
   });
 
   if (config.bridgeHostname) {
     console.log(`Bridge hostname: ${config.bridgeHostname}`);
   }
+  console.log(`Site timezone: ${config.siteTimezone}`);
 
   const modbus = new H1G2ModbusClient({
     host: config.modbusHost,
@@ -68,7 +76,7 @@ async function main(): Promise<void> {
       backoffMs = config.pollIntervalMs;
 
       while (true) {
-        await runPollCycle(modbus, store, config.verboseLogging);
+        await runPollCycle(modbus, store, aggregator, config.verboseLogging);
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {

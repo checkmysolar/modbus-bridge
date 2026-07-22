@@ -1,17 +1,27 @@
 import http from 'node:http';
+import type { HourlyAggregator } from '../aggregation/hourlyAggregator.js';
 import type { RealtimeStore } from '../storage/sqlite.js';
 import { formatTelemetryPreview } from '../telemetryLog.js';
 import { extractBearerToken, isAuthorized } from './auth.js';
+import {
+  buildReportResponse,
+  buildReportStatusResponse,
+  parseReportDate,
+  parseReportDimension,
+  parseReportYear,
+} from './reportHandlers.js';
 
 export interface BridgeHttpServerOptions {
   port: number;
   bridgeToken: string;
+  siteTimezone: string;
   store: RealtimeStore;
+  aggregator: HourlyAggregator;
   verboseLogging?: boolean;
 }
 
 export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.Server {
-  const { port, bridgeToken, store, verboseLogging = false } = options;
+  const { port, bridgeToken, siteTimezone, store, aggregator, verboseLogging = false } = options;
 
   const logRealtimeRequest = (status: number, detail?: string) => {
     if (!verboseLogging) {
@@ -95,6 +105,45 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
         },
         200
       );
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/report/status') {
+      const bearer = extractBearerToken(req);
+      if (!isAuthorized(bearer, bridgeToken)) {
+        sendJson({ error: 'Unauthorized' }, 401);
+        return;
+      }
+
+      sendJson(buildReportStatusResponse(aggregator, siteTimezone), 200);
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/report') {
+      const bearer = extractBearerToken(req);
+      if (!isAuthorized(bearer, bridgeToken)) {
+        sendJson({ error: 'Unauthorized' }, 401);
+        return;
+      }
+
+      const dimension = parseReportDimension(url.searchParams.get('dimension'));
+      if (!dimension) {
+        sendJson({ error: 'Missing or invalid dimension (day|week|month|year)' }, 400);
+        return;
+      }
+
+      try {
+        const report = buildReportResponse(aggregator, siteTimezone, dimension, {
+          date: parseReportDate(url.searchParams.get('date')),
+          year: parseReportYear(url.searchParams.get('year')),
+        });
+        sendJson(report, 200);
+      } catch (error) {
+        sendJson(
+          { error: error instanceof Error ? error.message : 'Failed to build report' },
+          500
+        );
+      }
       return;
     }
 

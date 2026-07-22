@@ -13,6 +13,7 @@ export CMS_BRIDGE_TOKEN='cms_bridge_...'          # from the app
 export MODBUS_HOST='192.168.1.100'              # Modbus adapter IP
 export BRIDGE_HOSTNAME='bridge-....modbus.internal'  # from the app
 export TUNNEL_TOKEN='eyJ...'                       # from the app
+export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour buckets
 # export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and /v1/realtime request
 docker compose up -d
 ```
@@ -21,11 +22,10 @@ docker compose up -d
 
 ## Test inverter connectivity
 
-Confirm Modbus works from your LAN before setting up tokens or Docker.
+Confirm Modbus works from your LAN before setting up tokens or Docker:
 
 ```bash
 npm install
-npm run build
 MODBUS_HOST=192.168.1.100 npm run probe
 ```
 
