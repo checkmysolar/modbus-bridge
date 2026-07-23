@@ -1,8 +1,10 @@
 import http from 'node:http';
 import type { HourlyAggregator } from '../aggregation/hourlyAggregator.js';
+import type { DetectedInverter } from '../modbus/profiles/types.js';
 import type { RealtimeStore } from '../storage/sqlite.js';
 import { formatTelemetryPreview } from '../telemetryLog.js';
 import { extractBearerToken, isAuthorized } from './auth.js';
+import { buildBridgeInfoResponse } from './info.js';
 import {
   buildReportResponse,
   buildReportStatusResponse,
@@ -14,14 +16,25 @@ import {
 export interface BridgeHttpServerOptions {
   port: number;
   bridgeToken: string;
+  bridgeVersion: string;
   siteTimezone: string;
   store: RealtimeStore;
   aggregator: HourlyAggregator;
+  getDetectedInverter: () => DetectedInverter | null;
   verboseLogging?: boolean;
 }
 
 export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.Server {
-  const { port, bridgeToken, siteTimezone, store, aggregator, verboseLogging = false } = options;
+  const {
+    port,
+    bridgeToken,
+    bridgeVersion,
+    siteTimezone,
+    store,
+    aggregator,
+    getDetectedInverter,
+    verboseLogging = false,
+  } = options;
 
   const logRequest = (method: string, route: string, status: number, detail?: string) => {
     if (!verboseLogging) {
@@ -45,6 +58,19 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
     if (method === 'GET' && path === '/v1/health') {
       logRequest(method, route, 200);
       sendJson({ status: 'ok' }, 200);
+      return;
+    }
+
+    if (method === 'GET' && path === '/v1/info') {
+      const bearer = extractBearerToken(req);
+      if (!isAuthorized(bearer, bridgeToken)) {
+        logRequest(method, route, 401);
+        sendJson({ error: 'Unauthorized' }, 401);
+        return;
+      }
+
+      logRequest(method, route, 200);
+      sendJson(buildBridgeInfoResponse(bridgeVersion, getDetectedInverter()), 200);
       return;
     }
 

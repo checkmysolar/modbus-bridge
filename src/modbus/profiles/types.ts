@@ -17,6 +17,9 @@ export interface DetectedInverter {
   profileId: ProfileId;
   connectionType: ConnectionType;
   firmwareVariant: FirmwareVariant;
+  managerVersion?: string;
+  masterVersion?: string;
+  slaveVersion?: string;
 }
 
 export interface ProfileContext {

@@ -8,6 +8,7 @@
  *   docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe
  */
 import { formatError } from './errors.js';
+import { buildBridgeInfoResponse, formatBridgeInfoLines } from './http/info.js';
 import { FoxModbusClient } from './modbus/client.js';
 import { H1_G2_ENERGY_COUNTERS_START } from './modbus/h1g2TodayTotals.js';
 import { formatTelemetryFull } from './telemetryLog.js';
@@ -78,14 +79,12 @@ async function main(): Promise<void> {
     console.log('TCP connected');
 
     const detected = modbus.getDetectedInverter();
-    if (detected) {
-      console.log(
-        `Inverter: ${detected.modelName} (${detected.modelId}) → profile ${detected.profileId}` +
-          (detected.firmwareVariant !== 'default' ? `, firmware ${detected.firmwareVariant}` : '') +
-          `, connection ${detected.connectionType}`
-      );
+    const bridgeInfo = buildBridgeInfoResponse(process.env.BRIDGE_VERSION ?? 'dev', detected);
+    console.log('Bridge info:');
+    for (const line of formatBridgeInfoLines(bridgeInfo)) {
+      console.log(`  ${line}`);
     }
-
+    console.log('');
     const telemetry = await modbus.readRealtimeSnapshot();
     console.log('Realtime snapshot:');
     for (const line of formatTelemetryFull(telemetry)) {
