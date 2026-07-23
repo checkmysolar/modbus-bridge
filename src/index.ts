@@ -37,17 +37,22 @@ async function runPollCycle(
 }
 
 async function main(): Promise<void> {
-  console.log(`Modbus bridge version: ${process.env.BRIDGE_VERSION ?? 'dev'}`);
+  const bridgeVersion = process.env.BRIDGE_VERSION ?? 'dev';
+  console.log(`Modbus bridge version: ${bridgeVersion}`);
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir, { verboseLogging: config.verboseLogging });
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
 
+  let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;
+
   startBridgeHttpServer({
     port: config.httpPort,
     bridgeToken: config.bridgeToken,
+    bridgeVersion,
     siteTimezone: config.siteTimezone,
     store,
     aggregator,
+    getDetectedInverter: () => detectedInverter,
     verboseLogging: config.verboseLogging,
   });
 
@@ -74,7 +79,8 @@ async function main(): Promise<void> {
   while (true) {
     try {
       await modbus.connect();
-      const detected = modbus.getDetectedInverter();
+      detectedInverter = modbus.getDetectedInverter();
+      const detected = detectedInverter;
       if (detected) {
         console.log(
           `Detected ${detected.modelName} → profile ${detected.profileId}` +
@@ -101,6 +107,7 @@ async function main(): Promise<void> {
       } else {
         console.error(`Bridge cycle failed: ${formatError(error)}`);
       }
+      detectedInverter = null;
       try {
         await modbus.close();
       } catch {

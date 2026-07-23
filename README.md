@@ -2,7 +2,7 @@
 
 Local Docker stack for **Fox ESS** inverters (H1, H3, KH, and OEM variants). Polls live data over Modbus TCP and sends snapshots to Check My Solar through a private tunnel.
 
-The bridge **auto-detects** your inverter model from holding register 30000 on startup (same approach as [foxess_modbus](https://github.com/nathanmarlor/foxess_modbus)).
+The bridge **auto-detects** your inverter model.
 
 **Full guide:** [checkmy.solar/docs/using-the-app/modbus-bridge/](https://checkmy.solar/docs/using-the-app/modbus-bridge/)
 

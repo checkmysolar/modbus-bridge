@@ -17,6 +17,8 @@ export interface DetectedInverter {
   profileId: ProfileId;
   connectionType: ConnectionType;
   firmwareVariant: FirmwareVariant;
+  /** Manager firmware version read from Modbus, when available. */
+  managerVersion?: string;
 }
 
 export interface ProfileContext {

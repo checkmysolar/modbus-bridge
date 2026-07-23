@@ -91,16 +91,15 @@ export async function autodetectInverter(
   options: AutodetectOptions = {}
 ): Promise<DetectedInverter> {
   if (options.forcedProfileId) {
-    const firmwareVariant = resolveFirmwareVariant(
-      options.forcedProfileId,
-      await readManagerVersion(reader, options.forcedProfileId)
-    );
+    const managerVersion = await readManagerVersion(reader, options.forcedProfileId);
+    const firmwareVariant = resolveFirmwareVariant(options.forcedProfileId, managerVersion);
     return {
       modelId: options.forcedProfileId,
       modelName: options.forcedModelName ?? options.forcedProfileId,
       profileId: options.forcedProfileId,
       connectionType: options.connectionType ?? 'aux',
       firmwareVariant,
+      managerVersion: managerVersion?.raw,
     };
   }
 
@@ -119,5 +118,6 @@ export async function autodetectInverter(
     profileId: match.profileId,
     connectionType: options.connectionType ?? match.connectionType ?? 'aux',
     firmwareVariant,
+    managerVersion: managerVersion?.raw,
   };
 }
