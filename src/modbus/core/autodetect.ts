@@ -1,5 +1,5 @@
 import type { ModbusReader } from './reader.js';
-import { readManagerVersion, resolveFirmwareVariant } from './version.js';
+import { readFirmwareVersions } from './version.js';
 import type { ConnectionType, DetectedInverter, ProfileId } from '../profiles/types.js';
 
 const MODEL_START_ADDRESS = 30000;
@@ -91,15 +91,19 @@ export async function autodetectInverter(
   options: AutodetectOptions = {}
 ): Promise<DetectedInverter> {
   if (options.forcedProfileId) {
-    const managerVersion = await readManagerVersion(reader, options.forcedProfileId);
-    const firmwareVariant = resolveFirmwareVariant(options.forcedProfileId, managerVersion);
+    const connectionType = options.connectionType ?? 'aux';
+    const { versions, firmwareVariant } = await readFirmwareVersions(
+      reader,
+      options.forcedProfileId,
+      connectionType
+    );
     return {
       modelId: options.forcedProfileId,
       modelName: options.forcedModelName ?? options.forcedProfileId,
       profileId: options.forcedProfileId,
-      connectionType: options.connectionType ?? 'aux',
+      connectionType,
       firmwareVariant,
-      managerVersion: managerVersion?.raw,
+      ...versions,
     };
   }
 
@@ -109,15 +113,19 @@ export async function autodetectInverter(
     throw new Error(`Unsupported inverter model '${modelName}'`);
   }
 
-  const managerVersion = await readManagerVersion(reader, match.profileId);
-  const firmwareVariant = resolveFirmwareVariant(match.profileId, managerVersion);
+  const connectionType = options.connectionType ?? match.connectionType ?? 'aux';
+  const { versions, firmwareVariant } = await readFirmwareVersions(
+    reader,
+    match.profileId,
+    connectionType
+  );
 
   return {
     modelId: match.modelId,
     modelName,
     profileId: match.profileId,
-    connectionType: options.connectionType ?? match.connectionType ?? 'aux',
+    connectionType,
     firmwareVariant,
-    managerVersion: managerVersion?.raw,
+    ...versions,
   };
 }

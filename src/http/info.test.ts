@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { DetectedInverter } from '../modbus/profiles/types.js';
-import { buildBridgeInfoResponse } from './info.js';
+import { buildBridgeInfoResponse, formatBridgeInfoLines } from './info.js';
 import { createBridgeHttpServer } from './server.js';
 
 describe('bridge info endpoint', () => {
@@ -24,6 +24,8 @@ describe('bridge info endpoint', () => {
       connectionType: 'aux',
       firmwareVariant: 'default',
       managerVersion: '1.2C',
+      masterVersion: '1.64',
+      slaveVersion: '1.02',
     };
 
     expect(buildBridgeInfoResponse('1.0.0', detected)).toEqual({
@@ -34,9 +36,39 @@ describe('bridge info endpoint', () => {
         profileId: 'h3Modern',
         connectionType: 'aux',
         managerVersion: '1.2C',
+        masterVersion: '1.64',
+        slaveVersion: '1.02',
         firmwareVariant: 'default',
       },
     });
+  });
+
+  it('formatBridgeInfoLines mirrors /v1/info fields', () => {
+    expect(
+      formatBridgeInfoLines({
+        bridgeVersion: '1.0.0',
+        inverter: {
+          inverterModel: 'KH10',
+          modelId: 'KH',
+          profileId: 'kh',
+          connectionType: 'lan',
+          managerVersion: '1.32',
+          masterVersion: '1.64',
+          slaveVersion: '1.02',
+          firmwareVariant: 'khPre133',
+        },
+      })
+    ).toEqual([
+      'bridgeVersion: 1.0.0',
+      'inverterModel: KH10',
+      'modelId: KH',
+      'profileId: kh',
+      'connectionType: lan',
+      'masterVersion: 1.64',
+      'slaveVersion: 1.02',
+      'managerVersion: 1.32',
+      'firmwareVariant: khPre133',
+    ]);
   });
 
   it('GET /v1/health stays lightweight', async () => {
@@ -69,6 +101,8 @@ describe('bridge info endpoint', () => {
       connectionType: 'lan',
       firmwareVariant: 'khPre133',
       managerVersion: '1.32',
+      masterVersion: '1.64',
+      slaveVersion: '1.02',
     };
 
     server = createBridgeHttpServer({
@@ -104,6 +138,8 @@ describe('bridge info endpoint', () => {
         profileId: 'kh',
         connectionType: 'lan',
         managerVersion: '1.32',
+        masterVersion: '1.64',
+        slaveVersion: '1.02',
         firmwareVariant: 'khPre133',
       },
     });
