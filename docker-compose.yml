@@ -18,6 +18,8 @@ services:
       MODBUS_CONNECTION: ${MODBUS_CONNECTION:-aux}
       BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
       SITE_TIMEZONE: ${SITE_TIMEZONE:?SITE_TIMEZONE is required}
+      CMS_API_URL: ${CMS_API_URL:-https://checkmy.solar}
+      NOTIFY_DEBOUNCE_POLLS: ${NOTIFY_DEBOUNCE_POLLS:-2}
       BRIDGE_VERBOSE_LOG: ${BRIDGE_VERBOSE_LOG:-false}
     networks:
       cms_net:

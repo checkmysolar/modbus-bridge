@@ -4,6 +4,7 @@ import { HourlyAggregator } from './aggregation/hourlyAggregator.js';
 import { startBridgeHttpServer } from './http/server.js';
 import { FoxModbusClient } from './modbus/client.js';
 import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
+import { WorkModeNotifier } from './notify/workModeNotifier.js';
 import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
 
@@ -16,6 +17,7 @@ function sleep(ms: number): Promise<void> {
 async function runPollCycle(
   modbus: FoxModbusClient,
   store: RealtimeStore,
+  workModeNotifier: WorkModeNotifier,
   aggregator: HourlyAggregator,
   verboseLogging: boolean
 ): Promise<void> {
@@ -26,6 +28,7 @@ async function runPollCycle(
   ]);
 
   store.upsert(telemetry, telemetry.sampledAt);
+  await workModeNotifier.handleSample(telemetry);
   const todayTotals = mapH1G2TodayTotalsSnapshotToFoxShape(todayTotalsSnapshot);
   if (todayTotals) {
     store.upsertTodayTotals(todayTotals, todayTotalsSnapshot.sampledAt);
@@ -42,6 +45,15 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir, { verboseLogging: config.verboseLogging });
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
+  const latestSnapshot = store.getLatest();
+  const workModeNotifier = new WorkModeNotifier(
+    {
+      apiUrl: config.cmsApiUrl,
+      bridgeToken: config.bridgeToken,
+      debouncePolls: config.notifyDebouncePolls,
+    },
+    latestSnapshot?.telemetry.workMode
+  );
 
   let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;
 
@@ -96,7 +108,7 @@ async function main(): Promise<void> {
       backoffMs = config.pollIntervalMs;
 
       while (true) {
-        await runPollCycle(modbus, store, aggregator, config.verboseLogging);
+        await runPollCycle(modbus, store, workModeNotifier, aggregator, config.verboseLogging);
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {
