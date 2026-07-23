@@ -17,6 +17,7 @@ export interface BridgeConfig {
   bridgeHostname?: string;
   cmsApiUrl: string;
   notifyDebouncePolls: number;
+  notifyTimeoutMs: number;
   /** When true, log each Modbus poll and each HTTP request. */
   verboseLogging: boolean;
   /** Force a register profile instead of auto-detecting from the inverter model. */
@@ -106,6 +107,7 @@ export function loadConfig(): BridgeConfig {
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
     cmsApiUrl: readOptional('CMS_API_URL') ?? 'https://checkmy.solar',
     notifyDebouncePolls: readInt('NOTIFY_DEBOUNCE_POLLS', 2),
+    notifyTimeoutMs: readInt('NOTIFY_TIMEOUT_MS', 5_000),
     verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
     inverterProfile: readProfileId('INVERTER_PROFILE'),
     modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),

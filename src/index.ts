@@ -28,7 +28,7 @@ async function runPollCycle(
   ]);
 
   store.upsert(telemetry, telemetry.sampledAt);
-  await workModeNotifier.handleSample(telemetry);
+  workModeNotifier.handleSample(telemetry);
   const todayTotals = mapH1G2TodayTotalsSnapshotToFoxShape(todayTotalsSnapshot);
   if (todayTotals) {
     store.upsertTodayTotals(todayTotals, todayTotalsSnapshot.sampledAt);
@@ -45,14 +45,14 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const store = new RealtimeStore(config.dataDir, { verboseLogging: config.verboseLogging });
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
-  const latestSnapshot = store.getLatest();
   const workModeNotifier = new WorkModeNotifier(
     {
       apiUrl: config.cmsApiUrl,
       bridgeToken: config.bridgeToken,
       debouncePolls: config.notifyDebouncePolls,
+      timeoutMs: config.notifyTimeoutMs,
     },
-    latestSnapshot?.telemetry.workMode
+    store
   );
 
   let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;

@@ -5,6 +5,12 @@ export interface WorkModeNotifierOptions {
   apiUrl: string;
   bridgeToken: string;
   debouncePolls: number;
+  timeoutMs: number;
+}
+
+export interface WorkModeNotifyStateStore {
+  getLastEmittedWorkMode(): number | undefined;
+  setLastEmittedWorkMode(workMode: number): void;
 }
 
 export interface WorkModeEventPayload {
@@ -18,21 +24,22 @@ export class WorkModeNotifier {
   private pendingWorkMode: number | undefined;
   private pendingCount = 0;
   private lastEmittedWorkMode: number | undefined;
+  private inFlightWorkMode: number | undefined;
 
   constructor(
     private readonly options: WorkModeNotifierOptions,
-    initialWorkMode?: number
+    private readonly stateStore: WorkModeNotifyStateStore
   ) {
-    this.lastEmittedWorkMode = initialWorkMode;
+    this.lastEmittedWorkMode = stateStore.getLastEmittedWorkMode();
   }
 
-  async handleSample(telemetry: ModbusRealtimeTelemetry): Promise<void> {
+  handleSample(telemetry: ModbusRealtimeTelemetry): void {
     const workMode = telemetry.workMode;
     if (workMode === undefined || workMode === null) {
       return;
     }
 
-    if (workMode === this.lastEmittedWorkMode) {
+    if (workMode === this.lastEmittedWorkMode || workMode === this.inFlightWorkMode) {
       this.pendingWorkMode = undefined;
       this.pendingCount = 0;
       return;
@@ -49,6 +56,17 @@ export class WorkModeNotifier {
       return;
     }
 
+    this.inFlightWorkMode = workMode;
+    this.pendingWorkMode = undefined;
+    this.pendingCount = 0;
+
+    void this.emitWorkMode(workMode, telemetry);
+  }
+
+  private async emitWorkMode(
+    workMode: number,
+    telemetry: ModbusRealtimeTelemetry
+  ): Promise<void> {
     const previousWorkMode = this.lastEmittedWorkMode;
 
     try {
@@ -59,16 +77,19 @@ export class WorkModeNotifier {
         soc: telemetry.SoC,
       });
       this.lastEmittedWorkMode = workMode;
-      this.pendingWorkMode = undefined;
-      this.pendingCount = 0;
+      this.stateStore.setLastEmittedWorkMode(workMode);
     } catch (error) {
       console.error(`Work mode notification failed: ${formatError(error)}`);
+    } finally {
+      if (this.inFlightWorkMode === workMode) {
+        this.inFlightWorkMode = undefined;
+      }
     }
   }
 }
 
 export async function postWorkModeEvent(
-  options: Pick<WorkModeNotifierOptions, 'apiUrl' | 'bridgeToken'>,
+  options: Pick<WorkModeNotifierOptions, 'apiUrl' | 'bridgeToken' | 'timeoutMs'>,
   payload: WorkModeEventPayload
 ): Promise<void> {
   const url = `${options.apiUrl.replace(/\/$/, '')}/api/bridge/events/work-mode`;
@@ -79,6 +100,7 @@ export async function postWorkModeEvent(
       Authorization: `Bearer ${options.bridgeToken}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(options.timeoutMs),
   });
 
   if (response.status === 401) {
