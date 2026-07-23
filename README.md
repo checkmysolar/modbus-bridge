@@ -2,7 +2,7 @@
 
 Local Docker stack for **Fox ESS** inverters (H1, H3, KH, and OEM variants). Polls live data over Modbus TCP and sends snapshots to Check My Solar through a private tunnel.
 
-The bridge **auto-detects** your inverter model from holding register 30000 on startup (same approach as [foxess_modbus](https://github.com/nathanmarlor/foxess_modbus)).
+The bridge **auto-detects** your inverter model.
 
 **Full guide:** [checkmy.solar/docs/using-the-app/modbus-bridge/](https://checkmy.solar/docs/using-the-app/modbus-bridge/)
 
@@ -30,6 +30,8 @@ export MODBUS_HOST='192.168.1.100'              # Modbus adapter IP
 export BRIDGE_HOSTNAME='bridge-....modbus.internal'  # from the app
 export TUNNEL_TOKEN='eyJ...'                       # from the app
 export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour buckets
+# export CMS_API_URL='https://checkmy.solar'         # override for dev/staging
+# export NOTIFY_DEBOUNCE_POLLS=2                     # stable polls before work mode push
 # export MODBUS_CONNECTION=aux                      # default; use lan for direct inverter LAN
 # export INVERTER_PROFILE=h3Modern                  # optional override
 # export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and HTTP request

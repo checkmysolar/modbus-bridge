@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS samples (
   ts TEXT PRIMARY KEY,
   telemetry_json TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS work_mode_notify_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  last_emitted_work_mode INTEGER,
+  updated_at TEXT NOT NULL
+);
 `;
 
 function mapHourRow(row: HourRowDb): DayHourlyRow {
@@ -162,6 +168,32 @@ export class RealtimeStore {
       )
       .run(JSON.stringify(telemetry), sampledAt, updatedAt);
     this.logWrite('upsert realtime_snapshot', `sampledAt=${sampledAt}`);
+  }
+
+  getLastEmittedWorkMode(): number | undefined {
+    const row = this.db
+      .prepare('SELECT last_emitted_work_mode FROM work_mode_notify_state WHERE id = 1')
+      .get() as { last_emitted_work_mode: number | null } | undefined;
+
+    if (!row || row.last_emitted_work_mode === null) {
+      return undefined;
+    }
+
+    return row.last_emitted_work_mode;
+  }
+
+  setLastEmittedWorkMode(workMode: number): void {
+    const updatedAt = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO work_mode_notify_state (id, last_emitted_work_mode, updated_at)
+         VALUES (1, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           last_emitted_work_mode = excluded.last_emitted_work_mode,
+           updated_at = excluded.updated_at`
+      )
+      .run(workMode, updatedAt);
+    this.logWrite('setLastEmittedWorkMode', `workMode=${workMode}`);
   }
 
   getLatest(): RealtimeSnapshot | null {
