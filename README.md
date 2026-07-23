@@ -1,8 +1,24 @@
 # Check My Solar Modbus Bridge
 
-Local Docker stack for **Fox ESS H1 G2** inverters. Polls live data over Modbus TCP and sends snapshots to Check My Solar through a private tunnel.
+Local Docker stack for **Fox ESS** inverters (H1, H3, KH, and OEM variants). Polls live data over Modbus TCP and sends snapshots to Check My Solar through a private tunnel.
+
+The bridge **auto-detects** your inverter model from holding register 30000 on startup (same approach as [foxess_modbus](https://github.com/nathanmarlor/foxess_modbus)).
 
 **Full guide:** [checkmy.solar/docs/using-the-app/modbus-bridge/](https://checkmy.solar/docs/using-the-app/modbus-bridge/)
+
+## Supported inverters
+
+Register profiles (auto-detected from the model string):
+
+| Profile | Example models |
+|---------|----------------|
+| `h1g2` | H1-G2, AC1-G2, P1 |
+| `h1Series` | H1, AC1, AIO-H1 (G1 / LAN) |
+| `kh` | KH10.5, KH-5.0 |
+| `h3Legacy` | H3, AC3, AIO-H3, Kuara, SK-HWR, STAR, Solavita SP, a-TroniX AX |
+| `h3Modern` | H3-Pro, H3-Smart, P3-SH, Enpal I-X, 1KOMMA5, EVO |
+
+Override auto-detect with `INVERTER_PROFILE` if needed.
 
 ## Quick start
 
@@ -14,6 +30,8 @@ export MODBUS_HOST='192.168.1.100'              # Modbus adapter IP
 export BRIDGE_HOSTNAME='bridge-....modbus.internal'  # from the app
 export TUNNEL_TOKEN='eyJ...'                       # from the app
 export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour buckets
+# export MODBUS_CONNECTION=aux                      # default; use lan for direct inverter LAN
+# export INVERTER_PROFILE=h3Modern                  # optional override
 # export BRIDGE_VERBOSE_LOG=true                    # log each Modbus poll and HTTP request
 docker compose up -d
 ```
@@ -40,7 +58,6 @@ If the stack is already running, probe inside the `modbus` container:
 docker compose exec modbus npm run probe
 ```
 
-
 ## Development
 
 ```bash
@@ -48,8 +65,6 @@ npm install
 npm test
 npm run build
 ```
-
-
 
 ## Acknowledgements
 
