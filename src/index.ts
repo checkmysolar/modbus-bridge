@@ -2,7 +2,7 @@ import { loadConfig } from './config.js';
 import { formatError } from './errors.js';
 import { HourlyAggregator } from './aggregation/hourlyAggregator.js';
 import { startBridgeHttpServer } from './http/server.js';
-import { H1G2ModbusClient } from './modbus/client.js';
+import { FoxModbusClient } from './modbus/client.js';
 import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
 import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
@@ -14,7 +14,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function runPollCycle(
-  modbus: H1G2ModbusClient,
+  modbus: FoxModbusClient,
   store: RealtimeStore,
   aggregator: HourlyAggregator,
   verboseLogging: boolean
@@ -56,18 +56,32 @@ async function main(): Promise<void> {
   }
   console.log(`Site timezone: ${config.siteTimezone}`);
 
-  const modbus = new H1G2ModbusClient({
-    host: config.modbusHost,
-    port: config.modbusPort,
-    unitId: config.modbusUnitId,
-    timeoutMs: config.modbusTimeoutMs,
-  });
+  const modbus = new FoxModbusClient(
+    {
+      host: config.modbusHost,
+      port: config.modbusPort,
+      unitId: config.modbusUnitId,
+      timeoutMs: config.modbusTimeoutMs,
+    },
+    {
+      forcedProfileId: config.inverterProfile,
+      connectionType: config.modbusConnection,
+    }
+  );
 
   let backoffMs = config.pollIntervalMs;
 
   while (true) {
     try {
       await modbus.connect();
+      const detected = modbus.getDetectedInverter();
+      if (detected) {
+        console.log(
+          `Detected ${detected.modelName} → profile ${detected.profileId}` +
+            (detected.firmwareVariant !== 'default' ? ` (${detected.firmwareVariant})` : '') +
+            ` [${detected.connectionType}]`
+        );
+      }
       if (!config.verboseLogging) {
         console.log(
           `Modbus connected to ${config.modbusHost}:${config.modbusPort} (unit ${config.modbusUnitId})`

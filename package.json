@@ -1,7 +1,7 @@
 {
   "name": "modbus-bridge",
   "version": "1.0.0",
-  "description": "Local Modbus bridge for Fox ESS H1 G2 inverters",
+  "description": "Local Modbus bridge for Fox ESS inverters (H1, H3, KH, and variants)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

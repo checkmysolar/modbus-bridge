@@ -12,6 +12,10 @@ services:
       MODBUS_UNIT_ID: ${MODBUS_UNIT_ID:-247}
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-10000}
       MODBUS_TIMEOUT_MS: ${MODBUS_TIMEOUT_MS:-5000}
+      # Optional: force register profile (h1g2, h1Series, kh, h3Legacy, h3Modern)
+      INVERTER_PROFILE: ${INVERTER_PROFILE:-}
+      # Optional: aux (RS485 adapter, default) or lan (direct inverter LAN)
+      MODBUS_CONNECTION: ${MODBUS_CONNECTION:-aux}
       BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
       SITE_TIMEZONE: ${SITE_TIMEZONE:?SITE_TIMEZONE is required}
       BRIDGE_VERBOSE_LOG: ${BRIDGE_VERBOSE_LOG:-false}

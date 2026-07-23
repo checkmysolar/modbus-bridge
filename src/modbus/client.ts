@@ -1,146 +1,71 @@
-import ModbusRTU from 'modbus-serial';
-import {
-  H1_G2_BLOCK_LENGTH,
-  H1_G2_BLOCK_START,
-  H1_G2_PV1_POWER_REGISTER,
-  H1_G2_PV2_POWER_REGISTER,
-  H1_G2_RESIDUAL_ENERGY_REGISTER,
-  H1_G2_STATE_STATUS1_REGISTER,
-  H1_G2_STATE_STATUS3_REGISTER,
-  H1_G2_REMOTE_ACTIVE_POWER_REGISTER,
-  H1_G2_REMOTE_ENABLE_REGISTER,
-  H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER,
-  H1_G2_WORK_MODE_REGISTER,
-  parseH1G2RealtimeSnapshot,
-} from './h1g2Registers.js';
-import {
-  H1_G2_ENERGY_COUNTERS_LENGTH,
-  H1_G2_ENERGY_COUNTERS_START,
-  parseH1G2TodayTotalsFromBlock,
-  type H1G2TodayTotalsSnapshot,
-} from './h1g2TodayTotals.js';
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
+import { autodetectInverter, type AutodetectOptions } from './core/autodetect.js';
+import { ModbusReader, type ModbusTcpConfig } from './core/reader.js';
+import {
+  detectedInverterToContext,
+  getProfile,
+  getReaderSpecialRegisters,
+  type ModbusProfile,
+} from './profiles/registry.js';
+import { mapTodayTotalsSnapshotToFoxShape, type TodayTotalsSnapshot } from './profiles/todayTotals.js';
+import type { DetectedInverter } from './profiles/types.js';
 
-export interface ModbusTcpConfig {
-  host: string;
-  port: number;
-  unitId: number;
-  timeoutMs: number;
-}
+export type { ModbusTcpConfig };
+export type { DetectedInverter };
+export type { TodayTotalsSnapshot };
+export { mapTodayTotalsSnapshotToFoxShape as mapH1G2TodayTotalsSnapshotToFoxShape };
 
-// modbus-serial is CJS; under NodeNext the default export typings are not constructable.
-interface ModbusClient {
-  connectTCP(host: string, options: { port: number }): Promise<void>;
-  setID(id: number): void;
-  setTimeout(timeoutMs: number): void;
-  close(callback: () => void): void;
-  readHoldingRegisters(
-    dataAddress: number,
-    length: number
-  ): Promise<{ data: number[] }>;
-  readInputRegisters(
-    dataAddress: number,
-    length: number
-  ): Promise<{ data: number[] }>;
-}
+export class FoxModbusClient {
+  private reader: ModbusReader | null = null;
+  private profile: ModbusProfile | null = null;
+  private detected: DetectedInverter | null = null;
 
-const ModbusClientCtor = ModbusRTU as unknown as { new (): ModbusClient };
-
-function assertRegisterData(data: number[] | undefined, label: string): number[] {
-  if (!data || data.length === 0) {
-    throw new Error(`Invalid Modbus response for ${label}`);
-  }
-  return data;
-}
-
-export class H1G2ModbusClient {
-  private readonly client = new ModbusClientCtor();
-
-  constructor(private readonly config: ModbusTcpConfig) {}
+  constructor(
+    private readonly config: ModbusTcpConfig,
+    private readonly autodetectOptions: AutodetectOptions = {}
+  ) {}
 
   async connect(): Promise<void> {
-    await this.client.connectTCP(this.config.host, { port: this.config.port });
-    this.client.setID(this.config.unitId);
-    this.client.setTimeout(this.config.timeoutMs);
+    const preliminaryReader = new ModbusReader(this.config);
+    await preliminaryReader.connect();
+
+    this.detected = await autodetectInverter(preliminaryReader, this.autodetectOptions);
+    const specialRegisters = getReaderSpecialRegisters(this.detected.profileId);
+    await preliminaryReader.close();
+
+    this.reader = new ModbusReader(this.config, specialRegisters);
+    await this.reader.connect();
+    this.profile = getProfile(this.detected.profileId);
+  }
+
+  getDetectedInverter(): DetectedInverter | null {
+    return this.detected;
   }
 
   async close(): Promise<void> {
-    this.client.close(() => undefined);
+    if (this.reader) {
+      await this.reader.close();
+      this.reader = null;
+    }
+  }
+
+  private requireReady(): { reader: ModbusReader; profile: ModbusProfile; detected: DetectedInverter } {
+    if (!this.reader || !this.profile || !this.detected) {
+      throw new Error('Modbus client is not connected');
+    }
+    return { reader: this.reader, profile: this.profile, detected: this.detected };
   }
 
   async readRealtimeSnapshot(sampledAt: string = new Date().toISOString()): Promise<ModbusRealtimeTelemetry> {
-    const [blockRes, residualRes, pv1Res, pv2Res, stateRes, workModeRes, remoteEnableRes, remoteActivePowerRes, remoteTimeoutRes] =
-      await Promise.all([
-      this.client.readHoldingRegisters(H1_G2_BLOCK_START, H1_G2_BLOCK_LENGTH),
-      this.client.readHoldingRegisters(H1_G2_RESIDUAL_ENERGY_REGISTER, 1),
-      this.client.readHoldingRegisters(H1_G2_PV1_POWER_REGISTER, 1),
-      this.client.readHoldingRegisters(H1_G2_PV2_POWER_REGISTER, 1),
-      this.client.readHoldingRegisters(H1_G2_STATE_STATUS1_REGISTER, 3),
-      this.client.readHoldingRegisters(H1_G2_WORK_MODE_REGISTER, 1).catch(() => null),
-      this.client.readHoldingRegisters(H1_G2_REMOTE_ENABLE_REGISTER, 1).catch(() => null),
-      this.client.readHoldingRegisters(H1_G2_REMOTE_ACTIVE_POWER_REGISTER, 1).catch(() => null),
-      this.client
-        .readInputRegisters(H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER, 1)
-        .catch(() => null),
-    ]);
-
-    const block = assertRegisterData(blockRes.data, `block ${H1_G2_BLOCK_START}`);
-    const residual = assertRegisterData(residualRes.data, 'residual energy')[0];
-    const pv1 = assertRegisterData(pv1Res.data, 'pv1 power')[0];
-    const pv2 = assertRegisterData(pv2Res.data, 'pv2 power')[0];
-    const state = assertRegisterData(stateRes.data, 'inverter state');
-    const workMode =
-      workModeRes && workModeRes.data?.length
-        ? assertRegisterData(workModeRes.data, 'work mode')[0]
-        : undefined;
-    const remoteEnable =
-      remoteEnableRes && remoteEnableRes.data?.length
-        ? assertRegisterData(remoteEnableRes.data, 'remote enable')[0]
-        : undefined;
-    const remoteActivePower =
-      remoteActivePowerRes && remoteActivePowerRes.data?.length
-        ? assertRegisterData(remoteActivePowerRes.data, 'remote active power')[0]
-        : undefined;
-    const remoteTimeoutCountdown =
-      remoteTimeoutRes && remoteTimeoutRes.data?.length
-        ? assertRegisterData(remoteTimeoutRes.data, 'remote timeout countdown')[0]
-        : undefined;
-
-    return parseH1G2RealtimeSnapshot({
-      block,
-      residualEnergyRaw: residual,
-      pv1PowerRaw: pv1,
-      pv2PowerRaw: pv2,
-      stateStatus1: state[0],
-      stateStatus3: state[2],
-      workModeRaw: workMode,
-      remoteEnableRaw: remoteEnable,
-      remoteActivePowerRaw: remoteActivePower,
-      remoteTimeoutCountdownRaw: remoteTimeoutCountdown,
-      sampledAt,
-    });
+    const { reader, profile, detected } = this.requireReady();
+    return profile.readRealtime(reader, detectedInverterToContext(detected), sampledAt);
   }
 
-  async readTodayTotals(sampledAt: string = new Date().toISOString()): Promise<H1G2TodayTotalsSnapshot> {
-    try {
-      const blockRes = await this.client.readHoldingRegisters(
-        H1_G2_ENERGY_COUNTERS_START,
-        H1_G2_ENERGY_COUNTERS_LENGTH
-      );
-      const block = assertRegisterData(
-        blockRes.data,
-        `energy counters ${H1_G2_ENERGY_COUNTERS_START}`
-      );
-      return parseH1G2TodayTotalsFromBlock(block, H1_G2_ENERGY_COUNTERS_START, sampledAt);
-    } catch (error) {
-      return {
-        sampledAt,
-        blockStart: H1_G2_ENERGY_COUNTERS_START,
-        blockLength: H1_G2_ENERGY_COUNTERS_LENGTH,
-        blockRaw: null,
-        totals: [],
-        readError: error instanceof Error ? error.message : String(error),
-      };
-    }
+  async readTodayTotals(sampledAt: string = new Date().toISOString()): Promise<TodayTotalsSnapshot> {
+    const { reader, profile, detected } = this.requireReady();
+    return profile.readTodayTotals(reader, detectedInverterToContext(detected), sampledAt);
   }
 }
+
+/** @deprecated Use FoxModbusClient */
+export class H1G2ModbusClient extends FoxModbusClient {}

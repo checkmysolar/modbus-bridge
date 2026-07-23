@@ -1,5 +1,5 @@
 /**
- * One-shot Modbus connectivity check for H1 G2 realtime snapshot.
+ * One-shot Modbus connectivity check with auto-detected inverter profile.
  *
  * Usage (local):
  *   npm run build && MODBUS_HOST=192.168.1.100 npm run probe
@@ -8,9 +8,10 @@
  *   docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe
  */
 import { formatError } from './errors.js';
-import { H1G2ModbusClient } from './modbus/client.js';
+import { FoxModbusClient } from './modbus/client.js';
 import { H1_G2_ENERGY_COUNTERS_START } from './modbus/h1g2TodayTotals.js';
 import { formatTelemetryFull } from './telemetryLog.js';
+import type { ConnectionType, ProfileId } from './config.js';
 
 function formatKwh(value: number | null): string {
   return value === null ? 'unavailable' : `${value.toFixed(2)} kWh`;
@@ -32,6 +33,25 @@ function readInt(name: string, fallback: number): number {
   return parsed;
 }
 
+function readOptionalProfile(): ProfileId | undefined {
+  const raw = process.env.INVERTER_PROFILE?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  return raw as ProfileId;
+}
+
+function readConnectionType(): ConnectionType {
+  const raw = process.env.MODBUS_CONNECTION?.trim().toLowerCase();
+  if (!raw) {
+    return 'aux';
+  }
+  if (raw !== 'aux' && raw !== 'lan') {
+    throw new Error(`Invalid MODBUS_CONNECTION: ${raw}`);
+  }
+  return raw;
+}
+
 async function main(): Promise<void> {
   const host = process.env.MODBUS_HOST?.trim();
   if (!host) {
@@ -45,11 +65,26 @@ async function main(): Promise<void> {
 
   console.log(`Connecting to ${host}:${port} (unit ${unitId}, timeout ${timeoutMs}ms)...`);
 
-  const modbus = new H1G2ModbusClient({ host, port, unitId, timeoutMs });
+  const modbus = new FoxModbusClient(
+    { host, port, unitId, timeoutMs },
+    {
+      forcedProfileId: readOptionalProfile(),
+      connectionType: readConnectionType(),
+    }
+  );
 
   try {
     await modbus.connect();
     console.log('TCP connected');
+
+    const detected = modbus.getDetectedInverter();
+    if (detected) {
+      console.log(
+        `Inverter: ${detected.modelName} (${detected.modelId}) → profile ${detected.profileId}` +
+          (detected.firmwareVariant !== 'default' ? `, firmware ${detected.firmwareVariant}` : '') +
+          `, connection ${detected.connectionType}`
+      );
+    }
 
     const telemetry = await modbus.readRealtimeSnapshot();
     console.log('Realtime snapshot:');
@@ -59,12 +94,10 @@ async function main(): Promise<void> {
 
     const todayTotals = await modbus.readTodayTotals();
     console.log('');
-    console.log(
-      `Today totals (holding ${H1_G2_ENERGY_COUNTERS_START}+, scale 0.1 kWh; foxess_modbus H1 G2 map):`
-    );
+    console.log(`Today totals (block start ${H1_G2_ENERGY_COUNTERS_START}+; profile-specific map):`);
     if (todayTotals.readError) {
       console.log(`  unavailable: ${todayTotals.readError}`);
-      console.log('  (Some adapters/firmware omit the 32000 energy counter block over LAN.)');
+      console.log('  (Some adapters/firmware omit energy counter blocks over LAN.)');
     } else {
       for (const total of todayTotals.totals) {
         console.log(
@@ -82,6 +115,8 @@ async function main(): Promise<void> {
     console.error('  - MODBUS_HOST is the RS485-to-Ethernet adapter IP (not the Fox Cloud SN)');
     console.error('  - Port is usually 502; unit ID for Fox ESS is usually 247');
     console.error('  - Modbus TCP is enabled on the adapter; no other master is holding the bus');
+    console.error('  - For H1 G1 over RS485, set MODBUS_CONNECTION=aux');
+    console.error('  - Override profile with INVERTER_PROFILE if auto-detect fails');
     process.exit(1);
   } finally {
     try {

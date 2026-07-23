@@ -6,6 +6,7 @@ import {
   WORK_MODE_PEAK_SHAVING,
   WORK_MODE_SELF_USE,
   resolveH1G2WorkMode,
+  resolveH3ModernWorkMode,
   workModeCodeToLabel,
 } from '@checkmysolar/modbus-telemetry/workMode';
 
@@ -74,5 +75,11 @@ describe('resolveH1G2WorkMode', () => {
   it('labels peak shaving distinctly from force discharge', () => {
     expect(workModeCodeToLabel(WORK_MODE_PEAK_SHAVING)).toBe('Peak Shaving');
     expect(workModeCodeToLabel(WORK_MODE_FORCE_DISCHARGE)).toBe('Force Discharge');
+  });
+
+  it('maps H3 modern work mode register values', () => {
+    expect(resolveH3ModernWorkMode({ workModeRegister: 1 })).toBe(WORK_MODE_SELF_USE);
+    expect(resolveH3ModernWorkMode({ workModeRegister: 2 })).toBe(WORK_MODE_FEED_IN);
+    expect(resolveH3ModernWorkMode({ workModeRegister: 4 })).toBe(WORK_MODE_PEAK_SHAVING);
   });
 });

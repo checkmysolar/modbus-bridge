@@ -79,6 +79,28 @@ export function resolveH1G2WorkMode(inputs: {
   return configuredWorkMode;
 }
 
+/** Resolve work mode for H3 Pro/Smart/EVO (holding register 49203, 1-based codes). */
+export function resolveH3ModernWorkMode(inputs: {
+  workModeRegister?: number;
+}): number | undefined {
+  if (inputs.workModeRegister === undefined) {
+    return undefined;
+  }
+
+  switch (inputs.workModeRegister) {
+    case 1:
+      return WORK_MODE_SELF_USE;
+    case 2:
+      return WORK_MODE_FEED_IN;
+    case 3:
+      return WORK_MODE_BACKUP;
+    case 4:
+      return WORK_MODE_PEAK_SHAVING;
+    default:
+      return undefined;
+  }
+}
+
 export function foxWorkModeSettingToCode(
   value: string | number | null | undefined
 ): number | undefined {

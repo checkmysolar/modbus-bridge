@@ -1,3 +1,9 @@
+export const BRIDGE_HTTP_PORT = 8080;
+
+export type ConnectionType = 'aux' | 'lan';
+
+export type ProfileId = 'h1g2' | 'h1Series' | 'kh' | 'h3Legacy' | 'h3Modern';
+
 export interface BridgeConfig {
   bridgeToken: string;
   modbusHost: string;
@@ -11,6 +17,10 @@ export interface BridgeConfig {
   bridgeHostname?: string;
   /** When true, log each Modbus poll and each HTTP request. */
   verboseLogging: boolean;
+  /** Force a register profile instead of auto-detecting from the inverter model. */
+  inverterProfile?: ProfileId;
+  /** RS485 adapter (aux) vs direct inverter LAN connection. */
+  modbusConnection: ConnectionType;
 }
 
 function readRequired(name: string): string {
@@ -46,6 +56,30 @@ function readBoolean(name: string, fallback: boolean): boolean {
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 }
 
+const PROFILE_IDS: ProfileId[] = ['h1g2', 'h1Series', 'kh', 'h3Legacy', 'h3Modern'];
+
+function readProfileId(name: string): ProfileId | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  if (!PROFILE_IDS.includes(raw as ProfileId)) {
+    throw new Error(`Invalid ${name}: ${raw}. Expected one of ${PROFILE_IDS.join(', ')}`);
+  }
+  return raw as ProfileId;
+}
+
+function readConnectionType(name: string, fallback: ConnectionType): ConnectionType {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  if (raw !== 'aux' && raw !== 'lan') {
+    throw new Error(`Invalid ${name}: ${raw}. Expected aux or lan`);
+  }
+  return raw;
+}
+
 function readTimezone(name: string): string {
   const value = readRequired(name);
   try {
@@ -69,5 +103,7 @@ export function loadConfig(): BridgeConfig {
     siteTimezone: readTimezone('SITE_TIMEZONE'),
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
     verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
+    inverterProfile: readProfileId('INVERTER_PROFILE'),
+    modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),
   };
 }
