@@ -8,6 +8,8 @@ import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
 
 const MAX_BACKOFF_MS = 60_000;
+/** foxess_modbus tolerates several failed polls before tearing down the TCP session. */
+const MAX_CONSECUTIVE_POLL_FAILURES = 5;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,10 +22,8 @@ async function runPollCycle(
   verboseLogging: boolean
 ): Promise<void> {
   const sampledAt = new Date().toISOString();
-  const [telemetry, todayTotalsSnapshot] = await Promise.all([
-    modbus.readRealtimeSnapshot(sampledAt),
-    modbus.readTodayTotals(sampledAt),
-  ]);
+  const telemetry = await modbus.readRealtimeSnapshot(sampledAt);
+  const todayTotalsSnapshot = await modbus.readTodayTotals(sampledAt);
 
   store.upsert(telemetry, telemetry.sampledAt);
   const todayTotals = mapH1G2TodayTotalsSnapshotToFoxShape(todayTotalsSnapshot);
@@ -60,6 +60,9 @@ async function main(): Promise<void> {
     console.log(`Bridge hostname: ${config.bridgeHostname}`);
   }
   console.log(`Site timezone: ${config.siteTimezone}`);
+  if (config.modbusDebugLogging) {
+    console.log('Modbus debug logging enabled (MODBUS_DEBUG_LOG)');
+  }
 
   const modbus = new FoxModbusClient(
     {
@@ -71,7 +74,8 @@ async function main(): Promise<void> {
     {
       forcedProfileId: config.inverterProfile,
       connectionType: config.modbusConnection,
-    }
+    },
+    config.modbusDebugLogging
   );
 
   let backoffMs = config.pollIntervalMs;
@@ -94,9 +98,23 @@ async function main(): Promise<void> {
         );
       }
       backoffMs = config.pollIntervalMs;
+      let consecutivePollFailures = 0;
 
       while (true) {
-        await runPollCycle(modbus, store, aggregator, config.verboseLogging);
+        try {
+          await runPollCycle(modbus, store, aggregator, config.verboseLogging);
+          consecutivePollFailures = 0;
+        } catch (error) {
+          consecutivePollFailures += 1;
+          if (config.verboseLogging) {
+            console.error(
+              `Poll cycle failed (${consecutivePollFailures}/${MAX_CONSECUTIVE_POLL_FAILURES}): ${formatError(error)}`
+            );
+          }
+          if (consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+            throw error;
+          }
+        }
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {

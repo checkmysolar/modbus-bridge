@@ -19,6 +19,7 @@ services:
       BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
       SITE_TIMEZONE: ${SITE_TIMEZONE:?SITE_TIMEZONE is required}
       BRIDGE_VERBOSE_LOG: ${BRIDGE_VERBOSE_LOG:-false}
+      MODBUS_DEBUG_LOG: ${MODBUS_DEBUG_LOG:-false}
     networks:
       cms_net:
         aliases:

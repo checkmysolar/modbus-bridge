@@ -11,13 +11,29 @@ import {
 } from '../core/scaling.js';
 import { isOffGridRunningState, parseH1RunningState } from './runningState.js';
 import {
-  H1_G2_ENERGY_COUNTERS_START,
-  H1_G2_TODAY_TOTAL_DEFINITIONS,
+  H1_G2_TODAY_TOTALS_SCALE,
   readH1G2TodayTotals,
 } from './h1g2.js';
-import type { TodayTotalsSnapshot } from './todayTotals.js';
-import { readTodayTotalsFromDefinitions } from './todayTotals.js';
+import {
+  buildTodayTotalsSnapshot,
+  type TodayTotalDefinition,
+  type TodayTotalsSnapshot,
+} from './todayTotals.js';
 import type { ProfileContext } from './types.js';
+
+/** G1 AUX today-total input registers (foxess_modbus entity_descriptions, Inv.H1_G1). */
+export const H1_SERIES_AUX_ENERGY_COUNTERS_START = 11071;
+
+export const H1_SERIES_AUX_TODAY_TOTAL_DEFINITIONS: readonly TodayTotalDefinition[] = [
+  { key: 'solarGeneration', label: 'Solar generation', registers: [11071], scale: H1_G2_TODAY_TOTALS_SCALE },
+  { key: 'batteryCharge', label: 'Battery charge', registers: [11074], scale: H1_G2_TODAY_TOTALS_SCALE },
+  { key: 'batteryDischarge', label: 'Battery discharge', registers: [11077], scale: H1_G2_TODAY_TOTALS_SCALE },
+  { key: 'feedIn', label: 'Feed-in (export)', registers: [11080], scale: H1_G2_TODAY_TOTALS_SCALE },
+  { key: 'gridConsumption', label: 'Grid consumption (import)', registers: [11083], scale: H1_G2_TODAY_TOTALS_SCALE },
+  { key: 'totalYield', label: 'Total yield', registers: [11086], scale: H1_G2_TODAY_TOTALS_SCALE, signed: true },
+  { key: 'inputEnergy', label: 'Input energy', registers: [11089], scale: H1_G2_TODAY_TOTALS_SCALE, signed: true },
+  { key: 'loadEnergy', label: 'Load energy', registers: [11092], scale: H1_G2_TODAY_TOTALS_SCALE, signed: true },
+] as const;
 
 const HOLDING_BLOCK_START = 31006;
 const HOLDING_BLOCK_LENGTH = 21;
@@ -63,19 +79,36 @@ async function readH1SeriesLan(
   context: ProfileContext,
   sampledAt: string
 ): Promise<ModbusRealtimeTelemetry> {
-  const [block, pv1, pv2, socReg, residualInput, stateReg, workMode, remoteEnable, remoteActivePower, remoteTimeout] =
-    await Promise.all([
-      reader.readHolding(HOLDING_BLOCK_START, HOLDING_BLOCK_LENGTH),
-      reader.readHoldingWord(HOLDING_SCATTERED.pv1Power),
-      reader.readHoldingWord(HOLDING_SCATTERED.pv2Power),
-      reader.readHoldingWord(HOLDING_SCATTERED.soc),
-      reader.readInputWordOptional(INPUT_ADDRESSES.residualEnergy),
-      reader.readHoldingWordOptional(HOLDING_SCATTERED.inverterState),
-      reader.readHoldingWordOptional(HOLDING_SCATTERED.workMode),
-      reader.readHoldingWordOptional(HOLDING_SCATTERED.remoteEnable),
-      reader.readHoldingWordOptional(HOLDING_SCATTERED.remoteActivePower),
-      reader.readInputWordOptional(HOLDING_SCATTERED.remoteTimeout),
-    ]);
+  const block = await reader.readHolding(HOLDING_BLOCK_START, HOLDING_BLOCK_LENGTH);
+  const holding = await reader.readScatteredWords(
+    'holding',
+    [HOLDING_SCATTERED.pv1Power, HOLDING_SCATTERED.pv2Power, HOLDING_SCATTERED.soc],
+    false
+  );
+  const optionalHolding = await reader.readScatteredWords(
+    'holding',
+    [
+      HOLDING_SCATTERED.inverterState,
+      HOLDING_SCATTERED.workMode,
+      HOLDING_SCATTERED.remoteEnable,
+      HOLDING_SCATTERED.remoteActivePower,
+    ],
+    true
+  );
+  const optionalInput = await reader.readScatteredWords(
+    'input',
+    [INPUT_ADDRESSES.residualEnergy, HOLDING_SCATTERED.remoteTimeout],
+    true
+  );
+  const pv1 = holding.get(HOLDING_SCATTERED.pv1Power)!;
+  const pv2 = holding.get(HOLDING_SCATTERED.pv2Power)!;
+  const socReg = holding.get(HOLDING_SCATTERED.soc)!;
+  const residualInput = optionalInput.get(INPUT_ADDRESSES.residualEnergy);
+  const remoteTimeout = optionalInput.get(HOLDING_SCATTERED.remoteTimeout);
+  const stateReg = optionalHolding.get(HOLDING_SCATTERED.inverterState);
+  const workMode = optionalHolding.get(HOLDING_SCATTERED.workMode);
+  const remoteEnable = optionalHolding.get(HOLDING_SCATTERED.remoteEnable);
+  const remoteActivePower = optionalHolding.get(HOLDING_SCATTERED.remoteActivePower);
 
   const gridCt = parseGridCtPowerKw(block[8]!);
   const batteryPower = parseBatteryPowerKw(block[16]!);
@@ -131,49 +164,53 @@ async function readH1SeriesAux(
   reader: ModbusReader,
   sampledAt: string
 ): Promise<ModbusRealtimeTelemetry> {
-  const [
-    pv1,
-    pv2,
-    gridVoltage,
-    gridCurrent,
-    gridFrequency,
-    epsVolt,
-    epsCurrent,
-    epsPowerRaw,
-    gridCtRaw,
-    meterPower2Raw,
-    loadPower,
-    deviceTemperature,
-    ambientTemperature,
-    batVoltage,
-    batCurrent,
-    soc,
-    residualEnergy,
-    batTemperature,
-    inverterState,
-    workMode,
-  ] = await Promise.all([
-    reader.readInputWord(INPUT_ADDRESSES.pv1Power),
-    reader.readInputWord(INPUT_ADDRESSES.pv2Power),
-    reader.readInputWord(INPUT_ADDRESSES.gridVoltage),
-    reader.readInputWord(INPUT_ADDRESSES.gridCurrent),
-    reader.readInputWord(INPUT_ADDRESSES.gridFrequency),
-    reader.readInputWord(INPUT_ADDRESSES.epsVolt),
-    reader.readInputWord(INPUT_ADDRESSES.epsCurrent),
-    reader.readInputWord(INPUT_ADDRESSES.epsPower),
-    reader.readInputWord(INPUT_ADDRESSES.gridCt),
-    reader.readInputWord(INPUT_ADDRESSES.meterPower2),
-    reader.readInputWord(INPUT_ADDRESSES.loadPower),
-    reader.readInputWord(INPUT_ADDRESSES.deviceTemperature),
-    reader.readInputWord(INPUT_ADDRESSES.ambientTemperature),
-    reader.readInputWord(INPUT_ADDRESSES.batVoltage),
-    reader.readInputWord(INPUT_ADDRESSES.batCurrent),
-    reader.readInputWord(INPUT_ADDRESSES.soc),
-    reader.readInputWord(INPUT_ADDRESSES.residualEnergy),
-    reader.readInputWord(INPUT_ADDRESSES.batTemperature),
-    reader.readInputWord(INPUT_ADDRESSES.inverterState),
-    reader.readInputWordOptional(INPUT_ADDRESSES.workMode),
-  ]);
+  const input = await reader.readScatteredWords(
+    'input',
+    [
+      INPUT_ADDRESSES.pv1Power,
+      INPUT_ADDRESSES.pv2Power,
+      INPUT_ADDRESSES.gridVoltage,
+      INPUT_ADDRESSES.gridCurrent,
+      INPUT_ADDRESSES.gridFrequency,
+      INPUT_ADDRESSES.epsVolt,
+      INPUT_ADDRESSES.epsCurrent,
+      INPUT_ADDRESSES.epsPower,
+      INPUT_ADDRESSES.gridCt,
+      INPUT_ADDRESSES.meterPower2,
+      INPUT_ADDRESSES.loadPower,
+      INPUT_ADDRESSES.deviceTemperature,
+      INPUT_ADDRESSES.ambientTemperature,
+      INPUT_ADDRESSES.batVoltage,
+      INPUT_ADDRESSES.batCurrent,
+      INPUT_ADDRESSES.soc,
+      INPUT_ADDRESSES.residualEnergy,
+      INPUT_ADDRESSES.batTemperature,
+      INPUT_ADDRESSES.inverterState,
+    ],
+    false
+  );
+  const workMode = (await reader.readScatteredWords('input', [INPUT_ADDRESSES.workMode], true)).get(
+    INPUT_ADDRESSES.workMode
+  );
+  const pv1 = input.get(INPUT_ADDRESSES.pv1Power)!;
+  const pv2 = input.get(INPUT_ADDRESSES.pv2Power)!;
+  const gridVoltage = input.get(INPUT_ADDRESSES.gridVoltage)!;
+  const gridCurrent = input.get(INPUT_ADDRESSES.gridCurrent)!;
+  const gridFrequency = input.get(INPUT_ADDRESSES.gridFrequency)!;
+  const epsVolt = input.get(INPUT_ADDRESSES.epsVolt)!;
+  const epsCurrent = input.get(INPUT_ADDRESSES.epsCurrent)!;
+  const epsPowerRaw = input.get(INPUT_ADDRESSES.epsPower)!;
+  const gridCtRaw = input.get(INPUT_ADDRESSES.gridCt)!;
+  const meterPower2Raw = input.get(INPUT_ADDRESSES.meterPower2)!;
+  const loadPower = input.get(INPUT_ADDRESSES.loadPower)!;
+  const deviceTemperature = input.get(INPUT_ADDRESSES.deviceTemperature)!;
+  const ambientTemperature = input.get(INPUT_ADDRESSES.ambientTemperature)!;
+  const batVoltage = input.get(INPUT_ADDRESSES.batVoltage)!;
+  const batCurrent = input.get(INPUT_ADDRESSES.batCurrent)!;
+  const soc = input.get(INPUT_ADDRESSES.soc)!;
+  const residualEnergy = input.get(INPUT_ADDRESSES.residualEnergy)!;
+  const batTemperature = input.get(INPUT_ADDRESSES.batTemperature)!;
+  const inverterState = input.get(INPUT_ADDRESSES.inverterState)!;
 
   const gridCt = parseGridCtPowerKw(gridCtRaw);
   const pv1Power = Math.max(0, scaleSignedPowerKw(pv1));
@@ -234,16 +271,29 @@ export async function readH1SeriesTodayTotals(
     return readH1G2TodayTotals(reader, context, sampledAt);
   }
 
-  return readTodayTotalsFromDefinitions(
-    async (registers) => {
-      const values: number[] = [];
-      for (const register of registers) {
-        values.push(await reader.readHoldingWord(register));
+  try {
+    const registers = H1_SERIES_AUX_TODAY_TOTAL_DEFINITIONS.flatMap((definition) => definition.registers);
+    const valuesByRegister = await reader.readScatteredWords('input', registers, false);
+    const valuesMap = new Map<number, number>();
+    for (const [register, value] of valuesByRegister) {
+      if (value !== undefined) {
+        valuesMap.set(register, value);
       }
-      return values;
-    },
-    H1_G2_TODAY_TOTAL_DEFINITIONS,
-    H1_G2_ENERGY_COUNTERS_START,
-    sampledAt
-  );
+    }
+    return buildTodayTotalsSnapshot(
+      H1_SERIES_AUX_TODAY_TOTAL_DEFINITIONS,
+      valuesMap,
+      sampledAt,
+      H1_SERIES_AUX_ENERGY_COUNTERS_START
+    );
+  } catch (error) {
+    return {
+      sampledAt,
+      blockStart: H1_SERIES_AUX_ENERGY_COUNTERS_START,
+      blockLength: 0,
+      blockRaw: null,
+      totals: [],
+      readError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

@@ -135,4 +135,41 @@ describe('H1 G2 register parsing', () => {
 
     expect(snapshot.workMode).toBe(1);
   });
+
+  it('uses BMS registers for bat voltage/current on manager 1.44+', () => {
+    const block = new Array(21).fill(0);
+    block[14] = 999;
+    block[15] = 999;
+    const bmsBlock = new Array(16).fill(0);
+    bmsBlock[0] = 520;
+    bmsBlock[1] = 65526;
+    bmsBlock[8] = 350;
+    bmsBlock[9] = 200;
+    bmsBlock[10] = 3300;
+    bmsBlock[11] = 3100;
+    bmsBlock[15] = 98;
+
+    const snapshot = parseH1G2RealtimeSnapshot({
+      block,
+      residualEnergyRaw: 0,
+      pv1PowerRaw: 0,
+      pv2PowerRaw: 0,
+      stateStatus1: 0x04,
+      stateStatus3: 0x00,
+      bmsBlock,
+      alarmBlock: [0x01, 0x02, 0x04],
+      sampledAt: '2026-07-24T12:00:00.000Z',
+    });
+
+    expect(snapshot.batVoltage).toBeCloseTo(52);
+    expect(snapshot.batCurrent).toBeCloseTo(-1);
+    expect(snapshot.batSoh).toBe(98);
+    expect(snapshot.bmsCellTempHigh).toBeCloseTo(35);
+    expect(snapshot.bmsCellTempLow).toBeCloseTo(20);
+    expect(snapshot.bmsCellMvHigh).toBe(3300);
+    expect(snapshot.bmsCellMvLow).toBe(3100);
+    expect(snapshot.alarmRegister1).toBe(0x01);
+    expect(snapshot.alarmRegister2).toBe(0x02);
+    expect(snapshot.alarmRegister3).toBe(0x04);
+  });
 });

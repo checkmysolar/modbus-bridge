@@ -14,7 +14,9 @@ export const H1_G2_SPECIAL_REGISTERS: SpecialRegisterConfig = {
 };
 
 export const H1_SERIES_SPECIAL_REGISTERS: SpecialRegisterConfig = {
-  invalidRanges: [{ start: 11096, end: 39999 }],
+  // Gap between G1 AUX input counters (~11092) and LAN holding block (~31002).
+  // Must not include LAN registers (31002+) or work-mode/remote blocks (41000+).
+  invalidRanges: [{ start: 11096, end: 31001 }],
   individualReadRanges: [],
 };
 

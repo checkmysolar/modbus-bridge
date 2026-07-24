@@ -229,11 +229,9 @@ export async function readFirmwareVersions(
     detection.firmwareVariant
   );
 
-  const [master, slave, manager] = await Promise.all([
-    readVersionField(reader, registerMap.master),
-    readVersionField(reader, registerMap.slave),
-    detection.manager ?? readVersionField(reader, registerMap.manager),
-  ]);
+  const master = await readVersionField(reader, registerMap.master);
+  const slave = await readVersionField(reader, registerMap.slave);
+  const manager = detection.manager ?? (await readVersionField(reader, registerMap.manager));
 
   return {
     versions: toFirmwareVersions(master, slave, manager),

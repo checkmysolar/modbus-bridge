@@ -14,6 +14,7 @@ describe('autodetect model patterns', () => {
 
   const cases: Array<{ model: string; profileId: string; modelId: string }> = [
     { model: 'H1-5.0-E1-G2', profileId: 'h1g2', modelId: 'H1_G2' },
+    { model: 'H1-5.0-E-G2-WL', profileId: 'h1g2', modelId: 'H1_G2' },
     { model: 'H1-5.0-E', profileId: 'h1Series', modelId: 'H1' },
     { model: 'AC1-5.0-E-G2', profileId: 'h1g2', modelId: 'AC1_G2' },
     { model: 'P1-5.0-E', profileId: 'h1g2', modelId: 'P1' },

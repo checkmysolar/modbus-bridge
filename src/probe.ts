@@ -53,6 +53,14 @@ function readConnectionType(): ConnectionType {
   return raw;
 }
 
+function readBoolean(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 async function main(): Promise<void> {
   const host = process.env.MODBUS_HOST?.trim();
   if (!host) {
@@ -71,7 +79,8 @@ async function main(): Promise<void> {
     {
       forcedProfileId: readOptionalProfile(),
       connectionType: readConnectionType(),
-    }
+    },
+    readBoolean('MODBUS_DEBUG_LOG', false)
   );
 
   try {
