@@ -8,8 +8,8 @@ import {
   scaleSignedPowerKw,
   scaleUnsigned,
 } from '../core/scaling.js';
-import { H1_G2_ENERGY_COUNTERS_START, H1_G2_TODAY_TOTAL_DEFINITIONS } from './h1g2.js';
-import { readTodayTotalsFromDefinitions, type TodayTotalsSnapshot } from './todayTotals.js';
+import { readH1G2TodayTotals } from './h1g2.js';
+import type { TodayTotalsSnapshot } from './todayTotals.js';
 import type { ProfileContext } from './types.js';
 
 export async function readH3LegacyRealtime(
@@ -17,65 +17,46 @@ export async function readH3LegacyRealtime(
   _context: ProfileContext,
   sampledAt: string
 ): Promise<ModbusRealtimeTelemetry> {
-  const [
-    gridVoltage,
-    gridCurrentS,
-    gridCurrentT,
-    gridFrequency,
-    invPowerR,
-    invPowerS,
-    invPowerT,
-    loadR,
-    loadS,
-    loadT,
-    gridCtR,
-    gridCtS,
-    gridCtT,
-    pv1,
-    pv2,
-    batPower,
-    soc,
-    batTemp,
-    invTemp,
-    ambTemp,
-    stateCode,
-    workMode,
-    remoteEnable,
-    remoteActivePower,
-    remoteTimeout,
-    batVoltage,
-    batCurrent,
-    residual,
-  ] = await Promise.all([
-    reader.readHoldingWord(31006),
-    reader.readHoldingWord(31007),
-    reader.readHoldingWord(31008),
-    reader.readHoldingWord(31015),
-    reader.readHoldingWord(31012),
-    reader.readHoldingWord(31013),
-    reader.readHoldingWord(31014),
-    reader.readHoldingWord(31029),
-    reader.readHoldingWord(31030),
-    reader.readHoldingWord(31031),
-    reader.readHoldingWord(31026),
-    reader.readHoldingWord(31027),
-    reader.readHoldingWord(31028),
-    reader.readHoldingWord(31002),
-    reader.readHoldingWord(31005),
-    reader.readHoldingWord(31036),
-    reader.readHoldingWord(31038),
-    reader.readHoldingWord(31037),
-    reader.readHoldingWord(31032),
-    reader.readHoldingWord(31033),
-    reader.readHoldingWordOptional(31041),
-    reader.readHoldingWordOptional(41000),
-    reader.readHoldingWordOptional(44000),
-    reader.readHoldingWordOptional(44002),
-    reader.readInputWordOptional(44004),
-    reader.readHoldingWord(31020),
-    reader.readHoldingWord(31021),
-    reader.readHoldingWordOptional(31123),
-  ]);
+  const holding = await reader.readScatteredWords(
+    'holding',
+    [
+      31006, 31007, 31008, 31015, 31012, 31013, 31014, 31029, 31030, 31031, 31026, 31027, 31028,
+      31002, 31005, 31036, 31038, 31037, 31032, 31033, 31020, 31021,
+    ],
+    false
+  );
+  const optionalHolding = await reader.readScatteredWords(
+    'holding',
+    [31041, 41000, 44000, 44002],
+    true
+  );
+  const remoteTimeout = (await reader.readScatteredWords('input', [44004], true)).get(44004);
+  const residual = (await reader.readScatteredWords('holding', [31123], true)).get(31123);
+
+  const gridVoltage = holding.get(31006)!;
+  const gridCurrentS = holding.get(31007)!;
+  const gridCurrentT = holding.get(31008)!;
+  const gridFrequency = holding.get(31015)!;
+  const invPowerR = holding.get(31012)!;
+  const loadR = holding.get(31029)!;
+  const loadS = holding.get(31030)!;
+  const loadT = holding.get(31031)!;
+  const gridCtR = holding.get(31026)!;
+  const gridCtS = holding.get(31027)!;
+  const gridCtT = holding.get(31028)!;
+  const pv1 = holding.get(31002)!;
+  const pv2 = holding.get(31005)!;
+  const batPower = holding.get(31036)!;
+  const soc = holding.get(31038)!;
+  const batTemp = holding.get(31037)!;
+  const invTemp = holding.get(31032)!;
+  const ambTemp = holding.get(31033)!;
+  const batVoltage = holding.get(31020)!;
+  const batCurrent = holding.get(31021)!;
+  const stateCode = optionalHolding.get(31041);
+  const workMode = optionalHolding.get(41000);
+  const remoteEnable = optionalHolding.get(44000);
+  const remoteActivePower = optionalHolding.get(44002);
 
   const gridCtTotal = parseGridCtPowerKw(gridCtR) ;
   const gridCtSData = parseGridCtPowerKw(gridCtS);
@@ -137,16 +118,8 @@ export async function readH3LegacyRealtime(
 
 export async function readH3LegacyTodayTotals(
   reader: ModbusReader,
-  _context: ProfileContext,
+  context: ProfileContext,
   sampledAt: string
 ): Promise<TodayTotalsSnapshot> {
-  return readTodayTotalsFromDefinitions(
-    async (registers) => {
-      const block = await reader.readHolding(H1_G2_ENERGY_COUNTERS_START, 24);
-      return registers.map((register) => block[register - H1_G2_ENERGY_COUNTERS_START]!);
-    },
-    H1_G2_TODAY_TOTAL_DEFINITIONS,
-    H1_G2_ENERGY_COUNTERS_START,
-    sampledAt
-  );
+  return readH1G2TodayTotals(reader, context, sampledAt);
 }

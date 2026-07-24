@@ -10,8 +10,8 @@ import {
   scaleUnsigned,
 } from '../core/scaling.js';
 import { isOffGridRunningState, parseG2RunningState } from './runningState.js';
+import { parseH1G2TodayTotalsFromBlock } from '../h1g2TodayTotals.js';
 import {
-  readTodayTotalsFromDefinitions,
   type TodayTotalDefinition,
   type TodayTotalsSnapshot,
 } from './todayTotals.js';
@@ -29,6 +29,19 @@ export const H1_G2_REMOTE_ENABLE_REGISTER = 44000;
 export const H1_G2_REMOTE_ACTIVE_POWER_REGISTER = 44002;
 export const H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER = 44004;
 export const H1_G2_LOAD_POWER_REGISTER = 31016;
+
+/** BMS block for manager firmware 1.44+ (foxess H1_G2_144). */
+export const H1_G2_BMS_BLOCK_START = 37609;
+export const H1_G2_BMS_BLOCK_LENGTH = 16;
+export const H1_G2_BMS_VOLTAGE_OFFSET = 0;
+export const H1_G2_BMS_CURRENT_OFFSET = 1;
+export const H1_G2_BMS_CELL_TEMP_HIGH_OFFSET = 8;
+export const H1_G2_BMS_CELL_TEMP_LOW_OFFSET = 9;
+export const H1_G2_BMS_CELL_MV_HIGH_OFFSET = 10;
+export const H1_G2_BMS_CELL_MV_LOW_OFFSET = 11;
+export const H1_G2_BMS_SOH_OFFSET = 15;
+export const H1_G2_ALARM_BLOCK_START = 39067;
+export const H1_G2_ALARM_BLOCK_LENGTH = 3;
 
 export const H1_G2_ENERGY_COUNTERS_START = 32000;
 export const H1_G2_ENERGY_COUNTERS_LENGTH = 24;
@@ -56,6 +69,10 @@ export interface H1G2RegisterInputs {
   remoteEnableRaw?: number;
   remoteActivePowerRaw?: number;
   remoteTimeoutCountdownRaw?: number;
+  /** Holding 37609–37624 when manager firmware is 1.44+. */
+  bmsBlock?: number[];
+  /** Holding 39067–39069 alarm bitmaps when manager firmware is 1.44+. */
+  alarmBlock?: number[];
   sampledAt: string;
 }
 
@@ -82,6 +99,12 @@ export function parseH1G2RealtimeSnapshot(input: H1G2RegisterInputs): ModbusReal
   const pv2Power = Math.max(0, scaleSignedPowerKw(input.pv2PowerRaw));
   const { pvStringCount, pvStringPowers } = buildPvStringPowers(pv1Power, pv2Power);
   const runningState = parseG2RunningState(input.stateStatus1, input.stateStatus3);
+  const batVoltageRaw = input.bmsBlock
+    ? input.bmsBlock[H1_G2_BMS_VOLTAGE_OFFSET]!
+    : block[14]!;
+  const batCurrentRaw = input.bmsBlock
+    ? input.bmsBlock[H1_G2_BMS_CURRENT_OFFSET]!
+    : block[15]!;
 
   return {
     loadsPower: scaleSignedPowerKw(block[10]!),
@@ -96,8 +119,8 @@ export function parseH1G2RealtimeSnapshot(input: H1G2RegisterInputs): ModbusReal
     batDischargePower: batteryPower.batDischargePower,
     SoC: block[18]!,
     ResidualEnergy: scaleUnsigned(input.residualEnergyRaw, 0.01),
-    batVoltage: scaleUnsigned(block[14]!, 0.1),
-    batCurrent: scaleSigned(block[15]!, 0.1),
+    batVoltage: scaleUnsigned(batVoltageRaw, 0.1),
+    batCurrent: scaleSigned(batCurrentRaw, 0.1),
     batTemperature: scaleSigned(block[17]!, 0.1),
     gridVoltage: scaleUnsigned(block[0]!, 0.1),
     gridCurrent: scaleUnsigned(block[1]!, 0.1),
@@ -111,6 +134,22 @@ export function parseH1G2RealtimeSnapshot(input: H1G2RegisterInputs): ModbusReal
     epsPowerR: epsPower,
     epsVoltR: scaleUnsigned(block[4]!, 0.1),
     epsCurrentR: scaleUnsigned(block[5]!, 0.1),
+    ...(input.bmsBlock
+      ? {
+          batSoh: input.bmsBlock[H1_G2_BMS_SOH_OFFSET]!,
+          bmsCellTempHigh: scaleSigned(input.bmsBlock[H1_G2_BMS_CELL_TEMP_HIGH_OFFSET]!, 0.1),
+          bmsCellTempLow: scaleSigned(input.bmsBlock[H1_G2_BMS_CELL_TEMP_LOW_OFFSET]!, 0.1),
+          bmsCellMvHigh: input.bmsBlock[H1_G2_BMS_CELL_MV_HIGH_OFFSET]!,
+          bmsCellMvLow: input.bmsBlock[H1_G2_BMS_CELL_MV_LOW_OFFSET]!,
+        }
+      : {}),
+    ...(input.alarmBlock
+      ? {
+          alarmRegister1: input.alarmBlock[0],
+          alarmRegister2: input.alarmBlock[1],
+          alarmRegister3: input.alarmBlock[2],
+        }
+      : {}),
     ...(() => {
       const workMode = resolveH1G2WorkMode({
         workModeRegister: input.workModeRaw,
@@ -140,33 +179,53 @@ export function parseLoadsPowerRegister(raw: number): number {
 
 export async function readH1G2Realtime(
   reader: ModbusReader,
-  _context: ProfileContext,
+  context: ProfileContext,
   sampledAt: string
 ): Promise<ModbusRealtimeTelemetry> {
-  const [block, residual, pv1, pv2, state, workMode, remoteEnable, remoteActivePower, remoteTimeout] =
-    await Promise.all([
-      reader.readHolding(H1_G2_BLOCK_START, H1_G2_BLOCK_LENGTH),
-      reader.readHoldingWord(H1_G2_RESIDUAL_ENERGY_REGISTER),
-      reader.readHoldingWord(H1_G2_PV1_POWER_REGISTER),
-      reader.readHoldingWord(H1_G2_PV2_POWER_REGISTER),
-      reader.readHolding(H1_G2_STATE_STATUS1_REGISTER, 3),
-      reader.readHoldingWordOptional(H1_G2_WORK_MODE_REGISTER),
-      reader.readHoldingWordOptional(H1_G2_REMOTE_ENABLE_REGISTER),
-      reader.readHoldingWordOptional(H1_G2_REMOTE_ACTIVE_POWER_REGISTER),
-      reader.readInputWordOptional(H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER),
-    ]);
+  const isPre144 = context.firmwareVariant === 'h1g2Pre144';
+
+  const block = await reader.readHolding(H1_G2_BLOCK_START, H1_G2_BLOCK_LENGTH);
+  const scattered = await reader.readScatteredWords(
+    'holding',
+    [H1_G2_RESIDUAL_ENERGY_REGISTER, H1_G2_PV1_POWER_REGISTER, H1_G2_PV2_POWER_REGISTER],
+    false
+  );
+  const state = await reader.readHolding(H1_G2_STATE_STATUS1_REGISTER, 3);
+  const optionalHolding = await reader.readScatteredWords(
+    'holding',
+    [
+      H1_G2_WORK_MODE_REGISTER,
+      H1_G2_REMOTE_ENABLE_REGISTER,
+      H1_G2_REMOTE_ACTIVE_POWER_REGISTER,
+    ],
+    true
+  );
+  const optionalInput = await reader.readScatteredWords(
+    'input',
+    [H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER],
+    true
+  );
+
+  let bmsBlock: number[] | undefined;
+  let alarmBlock: number[] | undefined;
+  if (!isPre144) {
+    bmsBlock = await reader.readHolding(H1_G2_BMS_BLOCK_START, H1_G2_BMS_BLOCK_LENGTH);
+    alarmBlock = await reader.readHolding(H1_G2_ALARM_BLOCK_START, H1_G2_ALARM_BLOCK_LENGTH);
+  }
 
   return parseH1G2RealtimeSnapshot({
     block,
-    residualEnergyRaw: residual,
-    pv1PowerRaw: pv1,
-    pv2PowerRaw: pv2,
+    residualEnergyRaw: scattered.get(H1_G2_RESIDUAL_ENERGY_REGISTER)!,
+    pv1PowerRaw: scattered.get(H1_G2_PV1_POWER_REGISTER)!,
+    pv2PowerRaw: scattered.get(H1_G2_PV2_POWER_REGISTER)!,
     stateStatus1: state[0]!,
     stateStatus3: state[2]!,
-    workModeRaw: workMode,
-    remoteEnableRaw: remoteEnable,
-    remoteActivePowerRaw: remoteActivePower,
-    remoteTimeoutCountdownRaw: remoteTimeout,
+    workModeRaw: optionalHolding.get(H1_G2_WORK_MODE_REGISTER),
+    remoteEnableRaw: optionalHolding.get(H1_G2_REMOTE_ENABLE_REGISTER),
+    remoteActivePowerRaw: optionalHolding.get(H1_G2_REMOTE_ACTIVE_POWER_REGISTER),
+    remoteTimeoutCountdownRaw: optionalInput.get(H1_G2_REMOTE_TIMEOUT_COUNTDOWN_REGISTER),
+    bmsBlock,
+    alarmBlock,
     sampledAt,
   });
 }
@@ -176,19 +235,17 @@ export async function readH1G2TodayTotals(
   _context: ProfileContext,
   sampledAt: string
 ): Promise<TodayTotalsSnapshot> {
-  const readPair = async (registers: number[]) => {
-    if (registers.length === 1) {
-      const block = await reader.readHolding(H1_G2_ENERGY_COUNTERS_START, H1_G2_ENERGY_COUNTERS_LENGTH);
-      const offset = registers[0]! - H1_G2_ENERGY_COUNTERS_START;
-      return [block[offset]!];
-    }
-    return reader.readHolding(registers[0]!, registers.length);
-  };
-
-  return readTodayTotalsFromDefinitions(
-    readPair,
-    H1_G2_TODAY_TOTAL_DEFINITIONS,
-    H1_G2_ENERGY_COUNTERS_START,
-    sampledAt
-  );
+  try {
+    const block = await reader.readHolding(H1_G2_ENERGY_COUNTERS_START, H1_G2_ENERGY_COUNTERS_LENGTH);
+    return parseH1G2TodayTotalsFromBlock(block, H1_G2_ENERGY_COUNTERS_START, sampledAt);
+  } catch (error) {
+    return {
+      sampledAt,
+      blockStart: H1_G2_ENERGY_COUNTERS_START,
+      blockLength: 0,
+      blockRaw: null,
+      totals: [],
+      readError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

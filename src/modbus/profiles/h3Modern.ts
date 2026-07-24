@@ -2,6 +2,7 @@ import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
 import { resolveH3ModernWorkMode } from '@checkmysolar/modbus-telemetry/workMode';
 import type { ModbusReader } from '../core/reader.js';
 import {
+  combineRegisters,
   parseBatteryPowerKwFromCombined,
   parseGridCtPowerKwFromCombined,
   scaleSigned,
@@ -9,7 +10,7 @@ import {
 } from '../core/scaling.js';
 import { isOffGridRunningState, parseG2RunningState } from './runningState.js';
 import {
-  readTodayTotalsFromDefinitions,
+  buildTodayTotalsSnapshot,
   type TodayTotalDefinition,
   type TodayTotalsSnapshot,
 } from './todayTotals.js';
@@ -31,47 +32,46 @@ export async function readH3ModernRealtime(
   _context: ProfileContext,
   sampledAt: string
 ): Promise<ModbusRealtimeTelemetry> {
-  const [
-    gridVoltage,
-    gridFrequency,
-    pv1,
-    pv2,
-    pv3,
-    pv4,
-    loadPower,
-    gridCt,
-    batPower,
-    batVoltage,
-    batCurrent,
-    soc,
-    batTemp,
-    invTemp,
-    ambTemp,
-    stateStatus1,
-    stateStatus3,
-    residual,
-    workMode,
-  ] = await Promise.all([
-    reader.readHoldingWord(39123),
-    reader.readHoldingWord(39139),
-    reader.readHoldingInt32([39280, 39279]),
-    reader.readHoldingInt32([39282, 39281]),
-    reader.readHoldingInt32Optional([39284, 39283]),
-    reader.readHoldingInt32Optional([39286, 39285]),
-    reader.readHoldingInt32([39226, 39225]),
-    reader.readHoldingInt32([38815, 38814]),
-    reader.readHoldingInt32([39238, 39237]),
-    reader.readHoldingWord(37609),
-    reader.readHoldingInt32([39229, 39228]),
-    reader.readHoldingWord(37612),
-    reader.readHoldingWord(37611),
-    reader.readHoldingWord(39141),
-    reader.readHoldingWordOptional(39142),
-    reader.readHoldingWord(39063),
-    reader.readHoldingWord(39065),
-    reader.readHoldingWord(37632),
-    reader.readHoldingWordOptional(49203),
-  ]);
+  const holding = await reader.readScatteredWords(
+    'holding',
+    [
+      39123, 39139, 39279, 39280, 39281, 39282, 39225, 39226, 38814, 38815, 39237, 39238, 37609,
+      39228, 39229, 37612, 37611, 39141, 39063, 39065, 37632,
+    ],
+    false
+  );
+  const optionalPairs = await reader.readScatteredWords('holding', [39283, 39284, 39285, 39286], true);
+  const optionalHolding = await reader.readScatteredWords('holding', [39142, 49203], true);
+
+  const gridVoltage = holding.get(39123)!;
+  const gridFrequency = holding.get(39139)!;
+  const pv1 = combineRegisters([holding.get(39280)!, holding.get(39279)!], true);
+  const pv2 = combineRegisters([holding.get(39282)!, holding.get(39281)!], true);
+  const pv3Low = optionalPairs.get(39283);
+  const pv3High = optionalPairs.get(39284);
+  const pv4Low = optionalPairs.get(39285);
+  const pv4High = optionalPairs.get(39286);
+  const pv3 =
+    pv3Low !== undefined && pv3High !== undefined
+      ? combineRegisters([pv3High, pv3Low], true)
+      : undefined;
+  const pv4 =
+    pv4Low !== undefined && pv4High !== undefined
+      ? combineRegisters([pv4High, pv4Low], true)
+      : undefined;
+  const loadPower = combineRegisters([holding.get(39226)!, holding.get(39225)!], true);
+  const gridCt = combineRegisters([holding.get(38815)!, holding.get(38814)!], true);
+  const batPower = combineRegisters([holding.get(39238)!, holding.get(39237)!], true);
+  const batVoltage = holding.get(37609)!;
+  const batCurrent = combineRegisters([holding.get(39229)!, holding.get(39228)!], true);
+  const soc = holding.get(37612)!;
+  const batTemp = holding.get(37611)!;
+  const invTemp = holding.get(39141)!;
+  const ambTemp = optionalHolding.get(39142);
+  const stateStatus1 = holding.get(39063)!;
+  const stateStatus3 = holding.get(39065)!;
+  const residual = holding.get(37632)!;
+  const workMode = optionalHolding.get(49203);
 
   const pv1Power = Math.max(0, pv1 * 0.001);
   const pv2Power = Math.max(0, pv2 * 0.001);
@@ -125,16 +125,29 @@ export async function readH3ModernTodayTotals(
   _context: ProfileContext,
   sampledAt: string
 ): Promise<TodayTotalsSnapshot> {
-  return readTodayTotalsFromDefinitions(
-    async (registers) => {
-      const values: number[] = [];
-      for (const register of registers) {
-        values.push(await reader.readHoldingWord(register));
+  try {
+    const registers = H3_MODERN_TODAY_TOTAL_DEFINITIONS.flatMap((definition) => definition.registers);
+    const valuesByRegister = await reader.readScatteredWords('holding', registers, false);
+    const valuesMap = new Map<number, number>();
+    for (const [register, value] of valuesByRegister) {
+      if (value !== undefined) {
+        valuesMap.set(register, value);
       }
-      return values;
-    },
-    H3_MODERN_TODAY_TOTAL_DEFINITIONS,
-    39601,
-    sampledAt
-  );
+    }
+    return buildTodayTotalsSnapshot(
+      H3_MODERN_TODAY_TOTAL_DEFINITIONS,
+      valuesMap,
+      sampledAt,
+      39601
+    );
+  } catch (error) {
+    return {
+      sampledAt,
+      blockStart: 39601,
+      blockLength: 0,
+      blockRaw: null,
+      totals: [],
+      readError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

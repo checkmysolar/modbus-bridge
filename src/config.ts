@@ -17,6 +17,8 @@ export interface BridgeConfig {
   bridgeHostname?: string;
   /** When true, log each Modbus poll and each HTTP request. */
   verboseLogging: boolean;
+  /** When true, log low-level Modbus reads (batching, lock waits, retries, blacklisting). */
+  modbusDebugLogging: boolean;
   /** Force a register profile instead of auto-detecting from the inverter model. */
   inverterProfile?: ProfileId;
   /** RS485 adapter (aux) vs direct inverter LAN connection. */
@@ -103,6 +105,7 @@ export function loadConfig(): BridgeConfig {
     siteTimezone: readTimezone('SITE_TIMEZONE'),
     bridgeHostname: readOptional('BRIDGE_HOSTNAME'),
     verboseLogging: readBoolean('BRIDGE_VERBOSE_LOG', false),
+    modbusDebugLogging: readBoolean('MODBUS_DEBUG_LOG', false),
     inverterProfile: readProfileId('INVERTER_PROFILE'),
     modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),
   };

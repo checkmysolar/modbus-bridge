@@ -2,6 +2,7 @@ import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
 import { resolveH1G2WorkMode, toSignedInt16 } from '@checkmysolar/modbus-telemetry/workMode';
 import type { ModbusReader } from '../core/reader.js';
 import {
+  combineRegisters,
   parseBatteryPowerKw,
   parseEpsPowerKw,
   parseGridCtPowerKwFromCombined,
@@ -10,11 +11,8 @@ import {
   scaleUnsigned,
 } from '../core/scaling.js';
 import { isOffGridRunningState, parseG2RunningState, parseH1RunningState } from './runningState.js';
-import {
-  H1_G2_ENERGY_COUNTERS_START,
-  H1_G2_TODAY_TOTAL_DEFINITIONS,
-} from './h1g2.js';
-import { readTodayTotalsFromDefinitions, type TodayTotalsSnapshot } from './todayTotals.js';
+import { readH1G2TodayTotals } from './h1g2.js';
+import type { TodayTotalsSnapshot } from './todayTotals.js';
 import type { ProfileContext } from './types.js';
 
 export async function readKhRealtime(
@@ -25,29 +23,40 @@ export async function readKhRealtime(
   const isPre133 = context.firmwareVariant === 'khPre133';
 
   const block = await reader.readHolding(31006, 21);
-  const [pv1Raw, pv2Raw, gridCtRaw, loadPowerRaw, residual, stateStatus1, stateStatus3, inverterState, workMode, remoteEnable, remoteActivePower, remoteTimeout] =
-    await Promise.all([
-      isPre133
-        ? reader.readHoldingInt32([31046, 31045])
-        : reader.readHoldingWord(39280),
-      isPre133
-        ? reader.readHoldingInt32([31048, 31047])
-        : reader.readHoldingWord(39282),
-      isPre133
-        ? reader.readHoldingInt32([31050, 31049])
-        : reader.readHoldingInt32([39169, 39168]),
-      isPre133
-        ? reader.readHoldingInt32([31054, 31053])
-        : reader.readHoldingWord(31016),
-      reader.readHoldingWordOptional(37632),
-      reader.readHoldingWordOptional(39063),
-      reader.readHoldingWordOptional(39065),
-      reader.readHoldingWordOptional(31027),
-      reader.readHoldingWordOptional(41000),
-      reader.readHoldingWordOptional(44000),
-      reader.readHoldingWordOptional(44002),
-      reader.readInputWordOptional(44004),
-    ]);
+  let pv1Raw: number;
+  let pv2Raw: number;
+  let gridCtRaw: number;
+  let loadPowerRaw: number;
+  if (isPre133) {
+    const pairs = await reader.readScatteredWords(
+      'holding',
+      [31045, 31046, 31047, 31048, 31049, 31050, 31053, 31054],
+      false
+    );
+    pv1Raw = combineRegisters([pairs.get(31046)!, pairs.get(31045)!], true);
+    pv2Raw = combineRegisters([pairs.get(31048)!, pairs.get(31047)!], true);
+    gridCtRaw = combineRegisters([pairs.get(31050)!, pairs.get(31049)!], true);
+    loadPowerRaw = combineRegisters([pairs.get(31054)!, pairs.get(31053)!], true);
+  } else {
+    const scattered = await reader.readScatteredWords('holding', [39280, 39282, 31016], false);
+    pv1Raw = scattered.get(39280)!;
+    pv2Raw = scattered.get(39282)!;
+    gridCtRaw = await reader.readHoldingInt32([39169, 39168]);
+    loadPowerRaw = scattered.get(31016)!;
+  }
+  const optionalHolding = await reader.readScatteredWords(
+    'holding',
+    [37632, 39063, 39065, 31027, 41000, 44000, 44002],
+    true
+  );
+  const remoteTimeout = (await reader.readScatteredWords('input', [44004], true)).get(44004);
+  const residual = optionalHolding.get(37632);
+  const stateStatus1 = optionalHolding.get(39063);
+  const stateStatus3 = optionalHolding.get(39065);
+  const inverterState = optionalHolding.get(31027);
+  const workMode = optionalHolding.get(41000);
+  const remoteEnable = optionalHolding.get(44000);
+  const remoteActivePower = optionalHolding.get(44002);
 
   const gridCtScale = -0.001;
   const gridCt = parseGridCtPowerKwFromCombined(gridCtRaw, gridCtScale);
@@ -110,16 +119,8 @@ export async function readKhRealtime(
 
 export async function readKhTodayTotals(
   reader: ModbusReader,
-  _context: ProfileContext,
+  context: ProfileContext,
   sampledAt: string
 ): Promise<TodayTotalsSnapshot> {
-  return readTodayTotalsFromDefinitions(
-    async (registers) => {
-      const block = await reader.readHolding(H1_G2_ENERGY_COUNTERS_START, 24);
-      return registers.map((register) => block[register - H1_G2_ENERGY_COUNTERS_START]!);
-    },
-    H1_G2_TODAY_TOTAL_DEFINITIONS,
-    H1_G2_ENERGY_COUNTERS_START,
-    sampledAt
-  );
+  return readH1G2TodayTotals(reader, context, sampledAt);
 }

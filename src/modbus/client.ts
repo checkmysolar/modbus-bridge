@@ -1,6 +1,6 @@
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
 import { autodetectInverter, type AutodetectOptions } from './core/autodetect.js';
-import { ModbusReader, type ModbusTcpConfig } from './core/reader.js';
+import { ModbusReader, type ModbusDebugLog, type ModbusTcpConfig } from './core/reader.js';
 import {
   detectedInverterToContext,
   getProfile,
@@ -19,23 +19,31 @@ export class FoxModbusClient {
   private reader: ModbusReader | null = null;
   private profile: ModbusProfile | null = null;
   private detected: DetectedInverter | null = null;
+  private readonly debugLog?: ModbusDebugLog;
 
   constructor(
     private readonly config: ModbusTcpConfig,
-    private readonly autodetectOptions: AutodetectOptions = {}
-  ) {}
+    private readonly autodetectOptions: AutodetectOptions = {},
+    debugLogging = false
+  ) {
+    if (debugLogging) {
+      this.debugLog = (message) => console.log(`[modbus] ${message}`);
+    }
+  }
 
   async connect(): Promise<void> {
-    const preliminaryReader = new ModbusReader(this.config);
-    await preliminaryReader.connect();
-
-    this.detected = await autodetectInverter(preliminaryReader, this.autodetectOptions);
-    const specialRegisters = getReaderSpecialRegisters(this.detected.profileId);
-    await preliminaryReader.close();
-
-    this.reader = new ModbusReader(this.config, specialRegisters);
+    this.reader = new ModbusReader(this.config, undefined, this.debugLog);
     await this.reader.connect();
+
+    this.debugLog?.(`connected ${this.config.host}:${this.config.port} unit ${this.config.unitId}`);
+    this.detected = await autodetectInverter(this.reader, this.autodetectOptions);
+    this.reader.setSpecialRegisters(getReaderSpecialRegisters(this.detected.profileId));
     this.profile = getProfile(this.detected.profileId);
+    this.debugLog?.(
+      `profile ${this.detected.profileId}` +
+        (this.detected.firmwareVariant !== 'default' ? ` (${this.detected.firmwareVariant})` : '') +
+        ` [${this.detected.connectionType}] model=${this.detected.modelName}`
+    );
   }
 
   getDetectedInverter(): DetectedInverter | null {
@@ -58,12 +66,20 @@ export class FoxModbusClient {
 
   async readRealtimeSnapshot(sampledAt: string = new Date().toISOString()): Promise<ModbusRealtimeTelemetry> {
     const { reader, profile, detected } = this.requireReady();
-    return profile.readRealtime(reader, detectedInverterToContext(detected), sampledAt);
+    const startedAt = Date.now();
+    this.debugLog?.('poll realtime snapshot start');
+    const telemetry = await profile.readRealtime(reader, detectedInverterToContext(detected), sampledAt);
+    this.debugLog?.(`poll realtime snapshot done in ${Date.now() - startedAt}ms`);
+    return telemetry;
   }
 
   async readTodayTotals(sampledAt: string = new Date().toISOString()): Promise<TodayTotalsSnapshot> {
     const { reader, profile, detected } = this.requireReady();
-    return profile.readTodayTotals(reader, detectedInverterToContext(detected), sampledAt);
+    const startedAt = Date.now();
+    this.debugLog?.('poll today totals start');
+    const totals = await profile.readTodayTotals(reader, detectedInverterToContext(detected), sampledAt);
+    this.debugLog?.(`poll today totals done in ${Date.now() - startedAt}ms`);
+    return totals;
   }
 }
 

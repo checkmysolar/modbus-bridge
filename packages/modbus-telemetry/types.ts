@@ -37,5 +37,21 @@ export interface ModbusRealtimeTelemetry {
   remoteActivePowerW?: number;
   /** Input register 44004 remote timeout countdown (seconds remaining). */
   remoteTimeoutCountdown?: number;
+  /** BMS state of health (%) from holding 37624 on h1g2_144+. */
+  batSoh?: number;
+  /** BMS max cell temperature (°C) from holding 37617 on h1g2_144+. */
+  bmsCellTempHigh?: number;
+  /** BMS min cell temperature (°C) from holding 37618 on h1g2_144+. */
+  bmsCellTempLow?: number;
+  /** BMS max cell voltage (mV) from holding 37619 on h1g2_144+. */
+  bmsCellMvHigh?: number;
+  /** BMS min cell voltage (mV) from holding 37620 on h1g2_144+. */
+  bmsCellMvLow?: number;
+  /** Alarm bitmap holding 39067 on h1g2_144+. */
+  alarmRegister1?: number;
+  /** Alarm bitmap holding 39068 on h1g2_144+. */
+  alarmRegister2?: number;
+  /** Alarm bitmap holding 39069 on h1g2_144+. */
+  alarmRegister3?: number;
   sampledAt: string;
 }
