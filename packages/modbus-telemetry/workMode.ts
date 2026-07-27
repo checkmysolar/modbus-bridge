@@ -49,9 +49,12 @@ function mapWorkModeRegister(raw: number | undefined): number | undefined {
 
 /**
  * Resolve the effective work mode for H1 G2 from Modbus registers.
- * Register 41000 is the configured work mode. Remote control (44000/44002) only
- * overrides it while the remote timeout countdown (input 44004) is still running;
- * stale active-power setpoints are ignored after the watchdog expires.
+ * Register 41000 is the configured work mode. foxess_modbus force charge/discharge
+ * keeps that register on Backup/Feed-in and drives charging via remote control
+ * (44000/44002). When remote enable is on and active power is non-zero, surface
+ * Force Charge/Discharge — matching HA's Work Mode select, which reflects remote
+ * control state rather than register 41000. Stale setpoints left after remote
+ * control is disabled (remote enable 0) are ignored.
  */
 export function resolveH1G2WorkMode(inputs: {
   workModeRegister?: number;
@@ -61,12 +64,7 @@ export function resolveH1G2WorkMode(inputs: {
 }): number | undefined {
   const configuredWorkMode = mapWorkModeRegister(inputs.workModeRegister);
 
-  if (
-    inputs.remoteEnable === 1 &&
-    inputs.remoteTimeoutCountdown !== undefined &&
-    inputs.remoteTimeoutCountdown > 0 &&
-    inputs.remoteActivePowerRaw !== undefined
-  ) {
+  if (inputs.remoteEnable === 1 && inputs.remoteActivePowerRaw !== undefined) {
     const activePower = toSignedInt16(inputs.remoteActivePowerRaw);
     if (activePower < 0) {
       return WORK_MODE_FORCE_CHARGE;

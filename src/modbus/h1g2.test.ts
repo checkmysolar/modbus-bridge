@@ -117,7 +117,27 @@ describe('H1 G2 register parsing', () => {
     expect(snapshot.remoteTimeoutCountdown).toBe(15);
   });
 
-  it('uses configured work mode when remote active power is stale after timeout', () => {
+  it('shows force charge when remote control is enabled with expired watchdog', () => {
+    const block = new Array(21).fill(0);
+    const snapshot = parseH1G2RealtimeSnapshot({
+      block,
+      residualEnergyRaw: 0,
+      pv1PowerRaw: 0,
+      pv2PowerRaw: 0,
+      stateStatus1: 0x04,
+      stateStatus3: 0x00,
+      workModeRaw: 2,
+      remoteEnableRaw: 1,
+      remoteActivePowerRaw: 65536 - 2500,
+      remoteTimeoutCountdownRaw: 0,
+      sampledAt: '2026-07-09T12:00:00.000Z',
+    });
+
+    expect(snapshot.workMode).toBe(3);
+    expect(snapshot.workModeRegister).toBe(2);
+  });
+
+  it('uses configured work mode when remote control is disabled', () => {
     const block = new Array(21).fill(0);
     const snapshot = parseH1G2RealtimeSnapshot({
       block,
@@ -127,7 +147,7 @@ describe('H1 G2 register parsing', () => {
       stateStatus1: 0x04,
       stateStatus3: 0x00,
       workModeRaw: 1,
-      remoteEnableRaw: 1,
+      remoteEnableRaw: 0,
       remoteActivePowerRaw: 65536 - 2500,
       remoteTimeoutCountdownRaw: 0,
       sampledAt: '2026-07-09T12:00:00.000Z',

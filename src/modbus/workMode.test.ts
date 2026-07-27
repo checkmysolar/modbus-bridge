@@ -18,10 +18,10 @@ describe('resolveH1G2WorkMode', () => {
     expect(resolveH1G2WorkMode({ workModeRegister: 4 })).toBe(WORK_MODE_PEAK_SHAVING);
   });
 
-  it('prefers remote control force charge when the watchdog countdown is active', () => {
+  it('prefers remote control force charge when remote enable is on', () => {
     expect(
       resolveH1G2WorkMode({
-        workModeRegister: 0,
+        workModeRegister: 2,
         remoteEnable: 1,
         remoteActivePowerRaw: 65536 - 3000,
         remoteTimeoutCountdown: 12,
@@ -29,7 +29,18 @@ describe('resolveH1G2WorkMode', () => {
     ).toBe(WORK_MODE_FORCE_CHARGE);
   });
 
-  it('prefers remote control force discharge when the watchdog countdown is active', () => {
+  it('prefers remote control force charge even when the watchdog countdown is zero', () => {
+    expect(
+      resolveH1G2WorkMode({
+        workModeRegister: 2,
+        remoteEnable: 1,
+        remoteActivePowerRaw: 65536 - 500,
+        remoteTimeoutCountdown: 0,
+      })
+    ).toBe(WORK_MODE_FORCE_CHARGE);
+  });
+
+  it('prefers remote control force discharge when remote enable is on', () => {
     expect(
       resolveH1G2WorkMode({
         workModeRegister: 0,
@@ -40,23 +51,13 @@ describe('resolveH1G2WorkMode', () => {
     ).toBe(WORK_MODE_FORCE_DISCHARGE);
   });
 
-  it('uses the configured work mode when remote active power is stale after timeout', () => {
+  it('uses the configured work mode when remote control is disabled', () => {
     expect(
       resolveH1G2WorkMode({
         workModeRegister: WORK_MODE_FEED_IN,
-        remoteEnable: 1,
+        remoteEnable: 0,
         remoteActivePowerRaw: 65536 - 2500,
         remoteTimeoutCountdown: 0,
-      })
-    ).toBe(WORK_MODE_FEED_IN);
-  });
-
-  it('uses the configured work mode when the timeout countdown is unavailable', () => {
-    expect(
-      resolveH1G2WorkMode({
-        workModeRegister: 1,
-        remoteEnable: 1,
-        remoteActivePowerRaw: 65536 - 2500,
       })
     ).toBe(WORK_MODE_FEED_IN);
   });
