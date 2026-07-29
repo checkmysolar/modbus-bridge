@@ -1,0 +1,188 @@
+{
+  "id": "h3Legacy-default",
+  "profileId": "h3Legacy",
+  "context": {
+    "connectionType": "aux",
+    "firmwareVariant": "default"
+  },
+  "sampledAt": "2026-07-29T12:00:00.000Z",
+  "registers": {
+    "holding": {
+      "31002": 2000,
+      "31005": 1500,
+      "31006": 2300,
+      "31007": 50,
+      "31008": 60,
+      "31012": 100,
+      "31013": 0,
+      "31014": 0,
+      "31015": 5000,
+      "31020": 512,
+      "31021": 65526,
+      "31026": 1200,
+      "31027": 0,
+      "31028": 0,
+      "31029": 2880,
+      "31030": 0,
+      "31031": 0,
+      "31032": 450,
+      "31033": 250,
+      "31036": 64036,
+      "31037": 280,
+      "31038": 75,
+      "31041": 2,
+      "31123": 5000,
+      "32000": 0,
+      "32001": 0,
+      "32002": 150,
+      "32003": 0,
+      "32004": 0,
+      "32005": 40,
+      "32006": 0,
+      "32007": 0,
+      "32008": 30,
+      "32009": 0,
+      "32010": 0,
+      "32011": 20,
+      "32012": 0,
+      "32013": 0,
+      "32014": 10,
+      "32015": 0,
+      "32016": 0,
+      "32017": 0,
+      "32018": 0,
+      "32019": 0,
+      "32020": 0,
+      "32021": 0,
+      "32022": 0,
+      "32023": 80,
+      "41000": 1,
+      "44000": 0,
+      "44002": 0
+    },
+    "input": {
+      "44004": 0
+    }
+  },
+  "expected": {
+    "realtime": {
+      "loadsPower": 2.88,
+      "pvPower": 3.5,
+      "pv1Power": 2,
+      "pv2Power": 1.5,
+      "pvStringCount": 2,
+      "pvStringPowers": {
+        "pv1Power": 2,
+        "pv2Power": 1.5
+      },
+      "feedinPower": 1.2,
+      "gridConsumptionPower": 0,
+      "batChargePower": 1.5,
+      "batDischargePower": 0,
+      "SoC": 75,
+      "ResidualEnergy": 50,
+      "batVoltage": 51.2,
+      "batCurrent": -1,
+      "batTemperature": 28,
+      "gridVoltage": 230,
+      "gridCurrent": 5,
+      "gridFrequency": 50,
+      "meterPower2": 0.1,
+      "ambientTemperature": 25,
+      "deviceTemperature": 45,
+      "runningState": 2,
+      "isOffGrid": false,
+      "epsPower": 0,
+      "epsPowerR": 0,
+      "epsVoltR": 0,
+      "epsCurrentR": 0,
+      "workModeRegister": 1,
+      "remoteEnable": 0,
+      "remoteActivePowerW": 0,
+      "remoteTimeoutCountdown": 0,
+      "workMode": 1,
+      "sampledAt": "2026-07-29T12:00:00.000Z"
+    },
+    "todayTotals": {
+      "sampledAt": "2026-07-29T12:00:00.000Z",
+      "blockStart": 32000,
+      "blockLength": 8,
+      "blockRaw": [
+        150,
+        40,
+        30,
+        20,
+        10,
+        0,
+        0,
+        80
+      ],
+      "totals": [
+        {
+          "key": "solarGeneration",
+          "label": "Solar generation",
+          "register": 32002,
+          "raw": 150,
+          "kwh": 15
+        },
+        {
+          "key": "batteryCharge",
+          "label": "Battery charge",
+          "register": 32005,
+          "raw": 40,
+          "kwh": 4
+        },
+        {
+          "key": "batteryDischarge",
+          "label": "Battery discharge",
+          "register": 32008,
+          "raw": 30,
+          "kwh": 3
+        },
+        {
+          "key": "feedIn",
+          "label": "Feed-in (export)",
+          "register": 32011,
+          "raw": 20,
+          "kwh": 2
+        },
+        {
+          "key": "gridConsumption",
+          "label": "Grid consumption (import)",
+          "register": 32014,
+          "raw": 10,
+          "kwh": 1
+        },
+        {
+          "key": "totalYield",
+          "label": "Total yield",
+          "register": 32017,
+          "raw": 0,
+          "kwh": 0
+        },
+        {
+          "key": "inputEnergy",
+          "label": "Input energy",
+          "register": 32020,
+          "raw": 0,
+          "kwh": 0
+        },
+        {
+          "key": "loadEnergy",
+          "label": "Load energy",
+          "register": 32023,
+          "raw": 80,
+          "kwh": 8
+        }
+      ]
+    },
+    "foxTodayTotals": {
+      "generation": 15,
+      "feedin": 2,
+      "gridConsumption": 1,
+      "chargeEnergyToTal": 4,
+      "dischargeEnergyToTal": 3,
+      "loadConsumption": 8
+    }
+  }
+}
