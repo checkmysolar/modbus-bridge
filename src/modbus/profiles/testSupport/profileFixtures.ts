@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
-import type { FoxShapedTodayTotals, TodayTotalsSnapshot } from './todayTotals.js';
-import type { ProfileContext, ProfileId } from './types.js';
-import type { RegisterMaps } from './testSupport/registerFixtureReader.js';
+import type { FoxShapedTodayTotals, TodayTotalsSnapshot } from '../todayTotals.js';
+import type { ProfileContext, ProfileId } from '../types.js';
+import type { RegisterMaps } from './registerFixtureReader.js';
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), '../fixtures');
 
