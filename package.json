@@ -10,7 +10,9 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "probe": "node dist/probe.js",
-    "test": "vitest"
+    "test": "vitest",
+    "test:integration": "vitest --run src/**/*.integration.test.ts",
+    "generate:profile-fixtures": "tsx scripts/generate-profile-fixtures.ts"
   },
   "dependencies": {
     "@checkmysolar/modbus-telemetry": "file:./packages/modbus-telemetry",
