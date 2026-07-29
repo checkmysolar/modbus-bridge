@@ -9,6 +9,7 @@ import {
 } from './profiles/registry.js';
 import { mapTodayTotalsSnapshotToFoxShape, type TodayTotalsSnapshot } from './profiles/todayTotals.js';
 import type { DetectedInverter } from './profiles/types.js';
+import { writeWorkMode } from './workModeWrite.js';
 
 export type { ModbusTcpConfig };
 export type { DetectedInverter };
@@ -80,6 +81,15 @@ export class FoxModbusClient {
     const totals = await profile.readTodayTotals(reader, detectedInverterToContext(detected), sampledAt);
     this.debugLog?.(`poll today totals done in ${Date.now() - startedAt}ms`);
     return totals;
+  }
+
+  async setWorkMode(code: number): Promise<{ workMode: number }> {
+    const { reader, detected } = this.requireReady();
+    const startedAt = Date.now();
+    this.debugLog?.(`set work mode ${code} start`);
+    const result = await writeWorkMode(reader, detected, code);
+    this.debugLog?.(`set work mode ${code} done in ${Date.now() - startedAt}ms`);
+    return result;
   }
 }
 

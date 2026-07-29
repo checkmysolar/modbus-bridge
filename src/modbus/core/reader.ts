@@ -19,6 +19,7 @@ interface ModbusSerialClient {
   close(callback: () => void): void;
   readHoldingRegisters(dataAddress: number, length: number): Promise<{ data: number[] }>;
   readInputRegisters(dataAddress: number, length: number): Promise<{ data: number[] }>;
+  writeRegister(address: number, value: number): Promise<{ address: number; value: number }>;
 }
 
 const ModbusClientCtor = ModbusRTU as unknown as { new (): ModbusSerialClient };
@@ -385,5 +386,40 @@ export class ModbusReader {
     }
     const values = addresses.map((address) => map.get(address)!);
     return combineRegisters(values as number[], signed);
+  }
+
+  async writeHoldingRegister(address: number, value: number): Promise<void> {
+    if (overlapsInvalidRange(this.specialRegisters, address, address)) {
+      throw new Error(`Cannot write holding register ${address} (invalid range)`);
+    }
+
+    await this.writeRaw(address, value);
+  }
+
+  private async writeRaw(address: number, value: number): Promise<void> {
+    return this.withLock(async () => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < NUM_RETRIES; attempt++) {
+        const startedAt = Date.now();
+        try {
+          await this.client.writeRegister(address, value);
+          await sleep(POST_READ_DELAY_MS);
+          this.debugLog?.(
+            `write holding ${address}=${value} ok in ${Date.now() - startedAt}ms` +
+              (attempt > 0 ? ` (attempt ${attempt + 1}/${NUM_RETRIES})` : '')
+          );
+          return;
+        } catch (error) {
+          lastError = error;
+          this.debugLog?.(
+            `write holding ${address}=${value} failed attempt ${attempt + 1}/${NUM_RETRIES}: ${formatError(error)}`
+          );
+          if (attempt < NUM_RETRIES - 1) {
+            await sleep(RETRY_DELAY_MS);
+          }
+        }
+      }
+      throw lastError;
+    });
   }
 }

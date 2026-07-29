@@ -28,6 +28,70 @@ export function toSignedInt16(raw: number): number {
   return raw >= 0x8000 ? raw - 0x10000 : raw;
 }
 
+/** Encode a signed int16 for Modbus holding registers (e.g. negative remote power). */
+export function toUnsignedInt16(signed: number): number {
+  return signed < 0 ? 0x10000 + signed : signed;
+}
+
+export type WorkModeWriteStrategy = 'h1g2' | 'h3Modern' | 'unsupported';
+
+export function isForceWorkMode(code: number): boolean {
+  return code === WORK_MODE_FORCE_CHARGE || code === WORK_MODE_FORCE_DISCHARGE;
+}
+
+/** Map unified work-mode code to H1/KH/H3-legacy holding register 41000. */
+export function workModeCodeToH1G2RegisterValue(code: number): number | undefined {
+  switch (code) {
+    case WORK_MODE_SELF_USE:
+      return 0;
+    case WORK_MODE_FEED_IN:
+      return 1;
+    case WORK_MODE_BACKUP:
+      return 2;
+    case WORK_MODE_PEAK_SHAVING:
+      return 4;
+    default:
+      return undefined;
+  }
+}
+
+/** Map unified work-mode code to H3-modern holding register 49203 (1-based). */
+export function workModeCodeToH3ModernRegisterValue(code: number): number | undefined {
+  switch (code) {
+    case WORK_MODE_SELF_USE:
+      return 1;
+    case WORK_MODE_FEED_IN:
+      return 2;
+    case WORK_MODE_BACKUP:
+      return 3;
+    case WORK_MODE_PEAK_SHAVING:
+      return 4;
+    default:
+      return undefined;
+  }
+}
+
+export function getWorkModeWriteStrategy(
+  profileId: string,
+  connectionType: 'aux' | 'lan'
+): WorkModeWriteStrategy {
+  if (profileId === 'h3Modern') {
+    return 'h3Modern';
+  }
+  if (profileId === 'h1Series' && connectionType === 'aux') {
+    return 'unsupported';
+  }
+  if (
+    profileId === 'h1g2' ||
+    profileId === 'kh' ||
+    profileId === 'h3Legacy' ||
+    (profileId === 'h1Series' && connectionType === 'lan')
+  ) {
+    return 'h1g2';
+  }
+  return 'unsupported';
+}
+
 function mapWorkModeRegister(raw: number | undefined): number | undefined {
   if (raw === undefined) {
     return undefined;
@@ -77,15 +141,12 @@ export function resolveH1G2WorkMode(inputs: {
   return configuredWorkMode;
 }
 
-/** Resolve work mode for H3 Pro/Smart/EVO (holding register 49203, 1-based codes). */
-export function resolveH3ModernWorkMode(inputs: {
-  workModeRegister?: number;
-}): number | undefined {
-  if (inputs.workModeRegister === undefined) {
+function mapH3ModernWorkModeRegister(raw: number | undefined): number | undefined {
+  if (raw === undefined) {
     return undefined;
   }
 
-  switch (inputs.workModeRegister) {
+  switch (raw) {
     case 1:
       return WORK_MODE_SELF_USE;
     case 2:
@@ -97,6 +158,38 @@ export function resolveH3ModernWorkMode(inputs: {
     default:
       return undefined;
   }
+}
+
+/**
+ * Resolve the effective work mode for H3 Pro/Smart/EVO.
+ * Register 49203 is the configured work mode. Remote control (46001/46004) only
+ * overrides it while the remote timeout countdown (input 46007) is still running;
+ * stale active-power setpoints are ignored after the watchdog expires.
+ */
+export function resolveH3ModernWorkMode(inputs: {
+  workModeRegister?: number;
+  remoteEnable?: number;
+  remoteActivePowerRaw?: number;
+  remoteTimeoutCountdown?: number;
+}): number | undefined {
+  const configuredWorkMode = mapH3ModernWorkModeRegister(inputs.workModeRegister);
+
+  if (
+    inputs.remoteEnable === 1 &&
+    inputs.remoteTimeoutCountdown !== undefined &&
+    inputs.remoteTimeoutCountdown > 0 &&
+    inputs.remoteActivePowerRaw !== undefined
+  ) {
+    const activePower = toSignedInt16(inputs.remoteActivePowerRaw);
+    if (activePower < 0) {
+      return WORK_MODE_FORCE_CHARGE;
+    }
+    if (activePower > 0) {
+      return WORK_MODE_FORCE_DISCHARGE;
+    }
+  }
+
+  return configuredWorkMode;
 }
 
 export function foxWorkModeSettingToCode(

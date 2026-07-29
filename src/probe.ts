@@ -88,7 +88,9 @@ async function main(): Promise<void> {
     console.log('TCP connected');
 
     const detected = modbus.getDetectedInverter();
-    const bridgeInfo = buildBridgeInfoResponse(process.env.BRIDGE_VERSION ?? 'dev', detected);
+    const bridgeInfo = buildBridgeInfoResponse(process.env.BRIDGE_VERSION ?? 'dev', detected, {
+      readOnly: readBoolean('MODBUS_READ_ONLY', true),
+    });
     console.log('Bridge info:');
     for (const line of formatBridgeInfoLines(bridgeInfo)) {
       console.log(`  ${line}`);

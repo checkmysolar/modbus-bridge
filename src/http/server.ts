@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { HourlyAggregator } from '../aggregation/hourlyAggregator.js';
 import type { DetectedInverter } from '../modbus/profiles/types.js';
+import { WorkModeWriteError } from '../modbus/workModeWrite.js';
 import type { RealtimeStore } from '../storage/sqlite.js';
 import { formatTelemetryPreview } from '../telemetryLog.js';
 import { extractBearerToken, isAuthorized } from './auth.js';
@@ -13,6 +14,18 @@ import {
   parseReportYear,
 } from './reportHandlers.js';
 
+async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  if (!raw) {
+    return {};
+  }
+  return JSON.parse(raw);
+}
+
 export interface BridgeHttpServerOptions {
   port: number;
   bridgeToken: string;
@@ -21,6 +34,8 @@ export interface BridgeHttpServerOptions {
   store: RealtimeStore;
   aggregator: HourlyAggregator;
   getDetectedInverter: () => DetectedInverter | null;
+  readOnly?: boolean;
+  setWorkMode?: (workMode: number) => Promise<{ workMode: number }>;
   verboseLogging?: boolean;
 }
 
@@ -33,6 +48,8 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
     store,
     aggregator,
     getDetectedInverter,
+    readOnly = false,
+    setWorkMode,
     verboseLogging = false,
   } = options;
 
@@ -70,7 +87,7 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
       }
 
       logRequest(method, route, 200);
-      sendJson(buildBridgeInfoResponse(bridgeVersion, getDetectedInverter()), 200);
+      sendJson(buildBridgeInfoResponse(bridgeVersion, getDetectedInverter(), { readOnly }), 200);
       return;
     }
 
@@ -169,6 +186,73 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
         logRequest(method, route, 500, message);
         sendJson({ error: message }, 500);
       }
+      return;
+    }
+
+    if (method === 'POST' && path === '/v1/control/work-mode') {
+      const bearer = extractBearerToken(req);
+      if (!isAuthorized(bearer, bridgeToken)) {
+        logRequest(method, route, 401);
+        sendJson({ error: 'Unauthorized' }, 401);
+        return;
+      }
+
+      if (readOnly) {
+        logRequest(method, route, 403, 'read-only');
+        sendJson({ error: 'Bridge is configured as read-only' }, 403);
+        return;
+      }
+
+      if (!setWorkMode) {
+        logRequest(method, route, 503);
+        sendJson({ error: 'Modbus client is not connected' }, 503);
+        return;
+      }
+
+      void (async () => {
+        let body: unknown;
+        try {
+          body = await readJsonBody(req);
+        } catch {
+          logRequest(method, route, 400, 'Invalid JSON body');
+          sendJson({ error: 'Invalid JSON body' }, 400);
+          return;
+        }
+
+        const workMode = (body as { workMode?: unknown }).workMode;
+        if (typeof workMode !== 'number' || !Number.isInteger(workMode)) {
+          logRequest(method, route, 400, 'Invalid workMode');
+          sendJson({ error: 'workMode must be an integer between 0 and 5' }, 400);
+          return;
+        }
+
+        try {
+          const result = await setWorkMode(workMode);
+          logRequest(method, route, 200, `workMode=${result.workMode}`);
+          sendJson({ success: true, workMode: result.workMode }, 200);
+        } catch (error) {
+          if (error instanceof WorkModeWriteError) {
+            if (error.code === 'UNSUPPORTED') {
+              logRequest(method, route, 409, error.message);
+              sendJson({ error: error.message }, 409);
+              return;
+            }
+            logRequest(method, route, 400, error.message);
+            sendJson({ error: error.message }, 400);
+            return;
+          }
+
+          const message = error instanceof Error ? error.message : 'Failed to set work mode';
+          if (message === 'Modbus client is not connected') {
+            logRequest(method, route, 503, message);
+            sendJson({ error: message }, 503);
+            return;
+          }
+
+          logRequest(method, route, 500, message);
+          sendJson({ error: message }, 500);
+        }
+      })();
       return;
     }
 

@@ -23,6 +23,8 @@ export interface BridgeConfig {
   inverterProfile?: ProfileId;
   /** RS485 adapter (aux) vs direct inverter LAN connection. */
   modbusConnection: ConnectionType;
+  /** When true, only read Modbus registers; never write holding registers. */
+  modbusReadOnly: boolean;
 }
 
 function readRequired(name: string): string {
@@ -108,5 +110,6 @@ export function loadConfig(): BridgeConfig {
     modbusDebugLogging: readBoolean('MODBUS_DEBUG_LOG', false),
     inverterProfile: readProfileId('INVERTER_PROFILE'),
     modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),
+    modbusReadOnly: readBoolean('MODBUS_READ_ONLY', true),
   };
 }

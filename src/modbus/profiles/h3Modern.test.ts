@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { combineRegisters } from '../core/scaling.js';
 import {
   WORK_MODE_FEED_IN,
+  WORK_MODE_FORCE_CHARGE,
+  WORK_MODE_FORCE_DISCHARGE,
   WORK_MODE_PEAK_SHAVING,
   WORK_MODE_SELF_USE,
   resolveH3ModernWorkMode,
@@ -17,5 +19,27 @@ describe('H3 modern helpers', () => {
     expect(resolveH3ModernWorkMode({ workModeRegister: 1 })).toBe(WORK_MODE_SELF_USE);
     expect(resolveH3ModernWorkMode({ workModeRegister: 2 })).toBe(WORK_MODE_FEED_IN);
     expect(resolveH3ModernWorkMode({ workModeRegister: 4 })).toBe(WORK_MODE_PEAK_SHAVING);
+  });
+
+  it('resolves force charge from H3 modern remote control registers', () => {
+    expect(
+      resolveH3ModernWorkMode({
+        workModeRegister: 1,
+        remoteEnable: 1,
+        remoteActivePowerRaw: 65536 - 5000,
+        remoteTimeoutCountdown: 30,
+      })
+    ).toBe(WORK_MODE_FORCE_CHARGE);
+  });
+
+  it('resolves force discharge from H3 modern remote control registers', () => {
+    expect(
+      resolveH3ModernWorkMode({
+        workModeRegister: 2,
+        remoteEnable: 1,
+        remoteActivePowerRaw: 5000,
+        remoteTimeoutCountdown: 30,
+      })
+    ).toBe(WORK_MODE_FORCE_DISCHARGE);
   });
 });
