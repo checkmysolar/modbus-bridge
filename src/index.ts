@@ -44,6 +44,7 @@ async function main(): Promise<void> {
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
 
   let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;
+  let setWorkMode: ((workMode: number) => Promise<{ workMode: number }>) | undefined;
 
   startBridgeHttpServer({
     port: config.httpPort,
@@ -53,6 +54,15 @@ async function main(): Promise<void> {
     store,
     aggregator,
     getDetectedInverter: () => detectedInverter,
+    readOnly: config.modbusReadOnly,
+    setWorkMode: config.modbusReadOnly
+      ? undefined
+      : (workMode) => {
+          if (!setWorkMode) {
+            return Promise.reject(new Error('Modbus client is not connected'));
+          }
+          return setWorkMode(workMode);
+        },
     verboseLogging: config.verboseLogging,
   });
 
@@ -62,6 +72,9 @@ async function main(): Promise<void> {
   console.log(`Site timezone: ${config.siteTimezone}`);
   if (config.modbusDebugLogging) {
     console.log('Modbus debug logging enabled (MODBUS_DEBUG_LOG)');
+  }
+  if (config.modbusReadOnly) {
+    console.log('Modbus read-only mode enabled (MODBUS_READ_ONLY)');
   }
 
   const modbus = new FoxModbusClient(
@@ -84,6 +97,9 @@ async function main(): Promise<void> {
     try {
       await modbus.connect();
       detectedInverter = modbus.getDetectedInverter();
+      if (!config.modbusReadOnly) {
+        setWorkMode = (workMode) => modbus.setWorkMode(workMode);
+      }
       const detected = detectedInverter;
       if (detected) {
         console.log(
@@ -126,6 +142,7 @@ async function main(): Promise<void> {
         console.error(`Bridge cycle failed: ${formatError(error)}`);
       }
       detectedInverter = null;
+      setWorkMode = undefined;
       try {
         await modbus.close();
       } catch {

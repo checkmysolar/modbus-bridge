@@ -16,6 +16,8 @@ services:
       INVERTER_PROFILE: ${INVERTER_PROFILE:-}
       # Optional: aux (RS485 adapter, default) or lan (direct inverter LAN)
       MODBUS_CONNECTION: ${MODBUS_CONNECTION:-aux}
+      # Set to false to allow Check My Solar to make Modbus writes, such as setting work mode
+      MODBUS_READ_ONLY: ${MODBUS_READ_ONLY:-true}
       BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
       SITE_TIMEZONE: ${SITE_TIMEZONE:?SITE_TIMEZONE is required}
       BRIDGE_VERBOSE_LOG: ${BRIDGE_VERBOSE_LOG:-false}

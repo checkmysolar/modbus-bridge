@@ -1,5 +1,5 @@
 import type { ModbusRealtimeTelemetry } from '@checkmysolar/modbus-telemetry';
-import { resolveH3ModernWorkMode } from '@checkmysolar/modbus-telemetry/workMode';
+import { resolveH3ModernWorkMode, toSignedInt16 } from '@checkmysolar/modbus-telemetry/workMode';
 import type { ModbusReader } from '../core/reader.js';
 import {
   combineRegisters,
@@ -17,6 +17,10 @@ import {
 import type { ProfileContext } from './types.js';
 
 const H3_MODERN_TODAY_SCALE = 0.01;
+export const H3_MODERN_WORK_MODE_REGISTER = 49203;
+export const H3_MODERN_REMOTE_ENABLE_REGISTER = 46001;
+export const H3_MODERN_REMOTE_ACTIVE_POWER_REGISTER = 46004;
+export const H3_MODERN_REMOTE_TIMEOUT_COUNTDOWN_REGISTER = 46007;
 
 export const H3_MODERN_TODAY_TOTAL_DEFINITIONS: readonly TodayTotalDefinition[] = [
   { key: 'solarGeneration', label: 'Solar generation', registers: [39604, 39603], scale: H3_MODERN_TODAY_SCALE, isPair: true },
@@ -41,7 +45,21 @@ export async function readH3ModernRealtime(
     false
   );
   const optionalPairs = await reader.readScatteredWords('holding', [39283, 39284, 39285, 39286], true);
-  const optionalHolding = await reader.readScatteredWords('holding', [39142, 49203], true);
+  const optionalHolding = await reader.readScatteredWords(
+    'holding',
+    [
+      39142,
+      H3_MODERN_WORK_MODE_REGISTER,
+      H3_MODERN_REMOTE_ENABLE_REGISTER,
+      H3_MODERN_REMOTE_ACTIVE_POWER_REGISTER,
+    ],
+    true
+  );
+  const optionalInput = await reader.readScatteredWords(
+    'input',
+    [H3_MODERN_REMOTE_TIMEOUT_COUNTDOWN_REGISTER],
+    true
+  );
 
   const gridVoltage = holding.get(39123)!;
   const gridFrequency = holding.get(39139)!;
@@ -71,7 +89,10 @@ export async function readH3ModernRealtime(
   const stateStatus1 = holding.get(39063)!;
   const stateStatus3 = holding.get(39065)!;
   const residual = holding.get(37632)!;
-  const workMode = optionalHolding.get(49203);
+  const workMode = optionalHolding.get(H3_MODERN_WORK_MODE_REGISTER);
+  const remoteEnable = optionalHolding.get(H3_MODERN_REMOTE_ENABLE_REGISTER);
+  const remoteActivePower = optionalHolding.get(H3_MODERN_REMOTE_ACTIVE_POWER_REGISTER);
+  const remoteTimeoutCountdown = optionalInput.get(H3_MODERN_REMOTE_TIMEOUT_COUNTDOWN_REGISTER);
 
   const pv1Power = Math.max(0, pv1 * 0.001);
   const pv2Power = Math.max(0, pv2 * 0.001);
@@ -84,7 +105,12 @@ export async function readH3ModernRealtime(
   const gridCtData = parseGridCtPowerKwFromCombined(gridCt, 0.0001);
   const batteryPower = parseBatteryPowerKwFromCombined(batPower, 0.001);
   const runningState = parseG2RunningState(stateStatus1, stateStatus3);
-  const workModeResolved = resolveH3ModernWorkMode({ workModeRegister: workMode });
+  const workModeResolved = resolveH3ModernWorkMode({
+    workModeRegister: workMode,
+    remoteEnable,
+    remoteActivePowerRaw: remoteActivePower,
+    remoteTimeoutCountdown,
+  });
 
   return {
     loadsPower: loadPower * 0.001,
@@ -115,6 +141,11 @@ export async function readH3ModernRealtime(
     epsVoltR: 0,
     epsCurrentR: 0,
     ...(workMode !== undefined ? { workModeRegister: workMode } : {}),
+    ...(remoteEnable !== undefined ? { remoteEnable } : {}),
+    ...(remoteActivePower !== undefined
+      ? { remoteActivePowerW: toSignedInt16(remoteActivePower) }
+      : {}),
+    ...(remoteTimeoutCountdown !== undefined ? { remoteTimeoutCountdown } : {}),
     ...(workModeResolved !== undefined ? { workMode: workModeResolved } : {}),
     sampledAt,
   };

@@ -13,6 +13,7 @@ export interface BridgeInverterInfo {
 
 export interface BridgeInfoResponse {
   bridgeVersion: string;
+  readOnly: boolean;
   inverter: BridgeInverterInfo | null;
 }
 
@@ -40,16 +41,21 @@ export function buildBridgeInverterInfo(detected: DetectedInverter): BridgeInver
 
 export function buildBridgeInfoResponse(
   bridgeVersion: string,
-  detected: DetectedInverter | null
+  detected: DetectedInverter | null,
+  options: { readOnly?: boolean } = {}
 ): BridgeInfoResponse {
   return {
     bridgeVersion,
+    readOnly: options.readOnly === true,
     inverter: detected ? buildBridgeInverterInfo(detected) : null,
   };
 }
 
 export function formatBridgeInfoLines(info: BridgeInfoResponse): string[] {
   const lines = [`bridgeVersion: ${info.bridgeVersion}`];
+  if (info.readOnly) {
+    lines.push('readOnly: true');
+  }
   if (!info.inverter) {
     lines.push('inverter: null');
     return lines;

@@ -30,6 +30,7 @@ describe('bridge info endpoint', () => {
 
     expect(buildBridgeInfoResponse('1.0.0', detected)).toEqual({
       bridgeVersion: '1.0.0',
+      readOnly: false,
       inverter: {
         inverterModel: 'H3-10.0-Smart',
         modelId: 'H3_SMART',
@@ -47,6 +48,7 @@ describe('bridge info endpoint', () => {
     expect(
       formatBridgeInfoLines({
         bridgeVersion: '1.0.0',
+        readOnly: true,
         inverter: {
           inverterModel: 'KH10',
           modelId: 'KH',
@@ -60,6 +62,7 @@ describe('bridge info endpoint', () => {
       })
     ).toEqual([
       'bridgeVersion: 1.0.0',
+      'readOnly: true',
       'inverterModel: KH10',
       'modelId: KH',
       'profileId: kh',
@@ -91,6 +94,35 @@ describe('bridge info endpoint', () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/v1/health`);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ status: 'ok' });
+  });
+
+  it('GET /v1/info includes readOnly when configured', async () => {
+    server = createBridgeHttpServer({
+      port: 0,
+      bridgeToken: 'secret',
+      bridgeVersion: 'test',
+      siteTimezone: 'Europe/London',
+      store: {} as never,
+      aggregator: {} as never,
+      getDetectedInverter: () => null,
+      readOnly: true,
+    });
+
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected server to listen on a TCP port');
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}/v1/info`, {
+      headers: { Authorization: 'Bearer secret' },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      bridgeVersion: 'test',
+      readOnly: true,
+      inverter: null,
+    });
   });
 
   it('GET /v1/info requires auth and returns bridge metadata', async () => {
@@ -132,6 +164,7 @@ describe('bridge info endpoint', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       bridgeVersion: 'test',
+      readOnly: false,
       inverter: {
         inverterModel: 'KH10',
         modelId: 'KH',
