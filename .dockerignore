@@ -6,3 +6,5 @@ dist
 docker-compose.yml
 vitest.config.ts
 **/*.test.ts
+**/*.integration.test.ts
+**/testSupport/**
