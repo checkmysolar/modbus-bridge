@@ -3,6 +3,7 @@ import { formatError } from './errors.js';
 import { HourlyAggregator } from './aggregation/hourlyAggregator.js';
 import { startBridgeHttpServer } from './http/server.js';
 import { FoxModbusClient } from './modbus/client.js';
+import type { WriteWorkModeOptions } from './modbus/workModeWrite.js';
 import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
 import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
@@ -44,7 +45,9 @@ async function main(): Promise<void> {
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
 
   let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;
-  let setWorkMode: ((workMode: number) => Promise<{ workMode: number }>) | undefined;
+  let setWorkMode:
+    | ((workMode: number, options?: WriteWorkModeOptions) => Promise<{ workMode: number }>)
+    | undefined;
 
   startBridgeHttpServer({
     port: config.httpPort,
@@ -57,11 +60,11 @@ async function main(): Promise<void> {
     readOnly: config.modbusReadOnly,
     setWorkMode: config.modbusReadOnly
       ? undefined
-      : (workMode) => {
+      : (workMode, options) => {
           if (!setWorkMode) {
             return Promise.reject(new Error('Modbus client is not connected'));
           }
-          return setWorkMode(workMode);
+          return setWorkMode(workMode, options);
         },
     verboseLogging: config.verboseLogging,
   });
@@ -98,7 +101,7 @@ async function main(): Promise<void> {
       await modbus.connect();
       detectedInverter = modbus.getDetectedInverter();
       if (!config.modbusReadOnly) {
-        setWorkMode = (workMode) => modbus.setWorkMode(workMode);
+        setWorkMode = (workMode, options) => modbus.setWorkMode(workMode, options);
       }
       const detected = detectedInverter;
       if (detected) {

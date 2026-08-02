@@ -16,7 +16,10 @@ describe('POST /v1/control/work-mode', () => {
   });
 
   async function startServer(
-    setWorkMode?: (workMode: number) => Promise<{ workMode: number }>,
+    setWorkMode?: (
+      workMode: number,
+      options?: { forcePowerW?: number }
+    ) => Promise<{ workMode: number }>,
     options: { readOnly?: boolean } = {}
   ) {
     server = createBridgeHttpServer({
@@ -133,6 +136,43 @@ describe('POST /v1/control/work-mode', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, workMode: 2 });
-    expect(setWorkMode).toHaveBeenCalledWith(2);
+    expect(setWorkMode).toHaveBeenCalledWith(2, undefined);
+  });
+
+  it('returns 400 for force mode without forcePowerW', async () => {
+    const setWorkMode = vi.fn(async (workMode: number) => ({ workMode }));
+    const url = await startServer(setWorkMode);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workMode: 3 }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(setWorkMode).not.toHaveBeenCalled();
+  });
+
+  it('returns success for force mode when forcePowerW is provided', async () => {
+    const setWorkMode = vi.fn(async (workMode: number, options?: { forcePowerW?: number }) => ({
+      workMode,
+    }));
+    const url = await startServer(setWorkMode);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workMode: 3, forcePowerW: 2500 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, workMode: 3 });
+    expect(setWorkMode).toHaveBeenCalledWith(3, { forcePowerW: 2500 });
   });
 });

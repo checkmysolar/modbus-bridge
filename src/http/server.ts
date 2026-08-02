@@ -1,7 +1,9 @@
 import http from 'node:http';
 import type { HourlyAggregator } from '../aggregation/hourlyAggregator.js';
 import type { DetectedInverter } from '../modbus/profiles/types.js';
+import { isForceWorkMode } from '@checkmysolar/modbus-telemetry/workMode';
 import { WorkModeWriteError } from '../modbus/workModeWrite.js';
+import type { WriteWorkModeOptions } from '../modbus/workModeWrite.js';
 import type { RealtimeStore } from '../storage/sqlite.js';
 import { formatTelemetryPreview } from '../telemetryLog.js';
 import { extractBearerToken, isAuthorized } from './auth.js';
@@ -35,7 +37,10 @@ export interface BridgeHttpServerOptions {
   aggregator: HourlyAggregator;
   getDetectedInverter: () => DetectedInverter | null;
   readOnly?: boolean;
-  setWorkMode?: (workMode: number) => Promise<{ workMode: number }>;
+  setWorkMode?: (
+    workMode: number,
+    options?: WriteWorkModeOptions
+  ) => Promise<{ workMode: number }>;
   verboseLogging?: boolean;
 }
 
@@ -219,15 +224,39 @@ export function createBridgeHttpServer(options: BridgeHttpServerOptions): http.S
           return;
         }
 
-        const workMode = (body as { workMode?: unknown }).workMode;
+        const payload = body as { workMode?: unknown; forcePowerW?: unknown };
+        const workMode = payload.workMode;
         if (typeof workMode !== 'number' || !Number.isInteger(workMode)) {
           logRequest(method, route, 400, 'Invalid workMode');
           sendJson({ error: 'workMode must be an integer between 0 and 5' }, 400);
           return;
         }
 
+        const forcePowerW = payload.forcePowerW;
+        if (isForceWorkMode(workMode)) {
+          if (
+            typeof forcePowerW !== 'number' ||
+            !Number.isInteger(forcePowerW) ||
+            forcePowerW <= 0 ||
+            forcePowerW > 6000
+          ) {
+            logRequest(method, route, 400, 'Invalid forcePowerW');
+            sendJson(
+              {
+                error:
+                  'forcePowerW is required for Force Charge/Discharge and must be an integer between 1 and 6000 watts',
+              },
+              400
+            );
+            return;
+          }
+        }
+
+        const writeOptions: WriteWorkModeOptions | undefined =
+          typeof forcePowerW === 'number' ? { forcePowerW } : undefined;
+
         try {
-          const result = await setWorkMode(workMode);
+          const result = await setWorkMode(workMode, writeOptions);
           logRequest(method, route, 200, `workMode=${result.workMode}`);
           sendJson({ success: true, workMode: result.workMode }, 200);
         } catch (error) {
