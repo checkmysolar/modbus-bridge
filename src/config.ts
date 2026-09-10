@@ -116,6 +116,6 @@ export function loadConfig(): BridgeConfig {
     modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),
     modbusReadOnly: readBoolean('MODBUS_READ_ONLY', true),
     apiBaseUrl: readOptional('CMS_API_BASE_URL') || 'https://checkmy.solar',
-    notificationsEnabled: readBoolean('CMS_NOTIFICATIONS_ENABLED', true),
+    notificationsEnabled: readBoolean('CMS_NOTIFICATIONS_ENABLED', false),
   };
 }
