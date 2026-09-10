@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 export function extractBearerToken(
   request: { headers: { authorization?: string | string[] | null; get?: (name: string) => string | null } }
 ): string | null {
@@ -17,5 +19,10 @@ export function isAuthorized(token: string | null, expectedToken: string): boole
   if (!token || !expectedToken) {
     return false;
   }
-  return token === expectedToken;
+  const tokenBuffer = Buffer.from(token);
+  const expectedBuffer = Buffer.from(expectedToken);
+  if (tokenBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(tokenBuffer, expectedBuffer);
 }

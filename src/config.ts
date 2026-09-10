@@ -25,6 +25,10 @@ export interface BridgeConfig {
   modbusConnection: ConnectionType;
   /** When true, only read Modbus registers; never write holding registers. */
   modbusReadOnly: boolean;
+  /** Check My Solar API origin for instant notification triggers. */
+  apiBaseUrl: string;
+  /** When false, skip notification trigger POSTs. */
+  notificationsEnabled: boolean;
 }
 
 function readRequired(name: string): string {
@@ -111,5 +115,7 @@ export function loadConfig(): BridgeConfig {
     inverterProfile: readProfileId('INVERTER_PROFILE'),
     modbusConnection: readConnectionType('MODBUS_CONNECTION', 'aux'),
     modbusReadOnly: readBoolean('MODBUS_READ_ONLY', true),
+    apiBaseUrl: readOptional('CMS_API_BASE_URL') || 'https://checkmy.solar',
+    notificationsEnabled: readBoolean('CMS_NOTIFICATIONS_ENABLED', true),
   };
 }
