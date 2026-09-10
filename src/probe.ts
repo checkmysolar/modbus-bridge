@@ -5,7 +5,7 @@
  *   npm run build && MODBUS_HOST=192.168.1.100 npm run probe
  *
  * Usage (Docker one-off):
- *   docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe
+ *   docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest dist/probe.js
  */
 import { formatError } from './errors.js';
 import { buildBridgeInfoResponse, formatBridgeInfoLines } from './http/info.js';

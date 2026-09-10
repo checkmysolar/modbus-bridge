@@ -6,6 +6,7 @@ import { FoxModbusClient } from './modbus/client.js';
 import { mapH1G2TodayTotalsSnapshotToFoxShape } from './modbus/h1g2TodayTotals.js';
 import { RealtimeStore } from './storage/sqlite.js';
 import { formatStoredTelemetryLog } from './telemetryLog.js';
+import { createNotificationTrigger } from './notifications/trigger.js';
 
 const MAX_BACKOFF_MS = 60_000;
 /** foxess_modbus tolerates several failed polls before tearing down the TCP session. */
@@ -19,7 +20,8 @@ async function runPollCycle(
   modbus: FoxModbusClient,
   store: RealtimeStore,
   aggregator: HourlyAggregator,
-  verboseLogging: boolean
+  verboseLogging: boolean,
+  onTelemetry?: (telemetry: Awaited<ReturnType<FoxModbusClient['readRealtimeSnapshot']>>) => Promise<void>
 ): Promise<void> {
   const sampledAt = new Date().toISOString();
   const telemetry = await modbus.readRealtimeSnapshot(sampledAt);
@@ -34,17 +36,31 @@ async function runPollCycle(
   if (verboseLogging) {
     console.log(formatStoredTelemetryLog(telemetry));
   }
+  if (onTelemetry) {
+    await onTelemetry(telemetry);
+  }
 }
 
 async function main(): Promise<void> {
   const bridgeVersion = process.env.BRIDGE_VERSION ?? 'dev';
   console.log(`Modbus bridge version: ${bridgeVersion}`);
   const config = loadConfig();
-  const store = new RealtimeStore(config.dataDir, { verboseLogging: config.verboseLogging });
+  const store = new RealtimeStore(config.dataDir);
   const aggregator = new HourlyAggregator(store, config.siteTimezone);
 
   let detectedInverter: ReturnType<FoxModbusClient['getDetectedInverter']> = null;
   let setWorkMode: ((workMode: number) => Promise<{ workMode: number }>) | undefined;
+
+  const notificationTrigger = createNotificationTrigger({
+    apiBaseUrl: config.apiBaseUrl,
+    bridgeToken: config.bridgeToken,
+    enabled: config.notificationsEnabled,
+    verboseLogging: config.verboseLogging,
+  });
+
+  if (config.notificationsEnabled) {
+    console.log(`Instant notifications enabled via ${config.apiBaseUrl}`);
+  }
 
   startBridgeHttpServer({
     port: config.httpPort,
@@ -118,7 +134,15 @@ async function main(): Promise<void> {
 
       while (true) {
         try {
-          await runPollCycle(modbus, store, aggregator, config.verboseLogging);
+          await runPollCycle(
+            modbus,
+            store,
+            aggregator,
+            config.verboseLogging,
+            async (telemetry) => {
+              await notificationTrigger.handleTelemetry(telemetry);
+            }
+          );
           consecutivePollFailures = 0;
         } catch (error) {
           consecutivePollFailures += 1;

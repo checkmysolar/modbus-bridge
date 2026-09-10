@@ -5,6 +5,18 @@ services:
       dockerfile: Dockerfile
     image: ghcr.io/checkmysolar/modbus-bridge:latest
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     environment:
       CMS_BRIDGE_TOKEN: ${CMS_BRIDGE_TOKEN:?CMS_BRIDGE_TOKEN is required}
       MODBUS_HOST: ${MODBUS_HOST:?MODBUS_HOST is required}
@@ -20,6 +32,8 @@ services:
       MODBUS_READ_ONLY: ${MODBUS_READ_ONLY:-true}
       BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
       SITE_TIMEZONE: ${SITE_TIMEZONE:?SITE_TIMEZONE is required}
+      CMS_API_BASE_URL: ${CMS_API_BASE_URL:-https://checkmy.solar}
+      CMS_NOTIFICATIONS_ENABLED: ${CMS_NOTIFICATIONS_ENABLED:-true}
       BRIDGE_VERBOSE_LOG: ${BRIDGE_VERBOSE_LOG:-false}
       MODBUS_DEBUG_LOG: ${MODBUS_DEBUG_LOG:-false}
     networks:
@@ -28,11 +42,12 @@ services:
           - ${BRIDGE_HOSTNAME}
     volumes:
       - bridge_data:/data
+    # Do not publish port 8080 to the host — cloudflared reaches the bridge on the internal network only.
     healthcheck:
       test:
         [
           "CMD",
-          "node",
+          "/nodejs/bin/node",
           "-e",
           "fetch('http://127.0.0.1:8080/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
@@ -42,8 +57,15 @@ services:
       retries: 3
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.8.2
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     command: tunnel --metrics 127.0.0.1:60123 --no-autoupdate run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
     healthcheck:
       test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:60123", "ready"]
@@ -53,22 +75,6 @@ services:
       retries: 3
     networks:
       - cms_net
-
-  debug:
-    image: nicolaka/netshoot:latest
-    profiles:
-      - debug
-    stdin_open: true
-    tty: true
-    environment:
-      MODBUS_HOST: ${MODBUS_HOST:?MODBUS_HOST is required}
-      MODBUS_PORT: ${MODBUS_PORT:-502}
-      MODBUS_UNIT_ID: ${MODBUS_UNIT_ID:-247}
-      CMS_BRIDGE_TOKEN: ${CMS_BRIDGE_TOKEN:-}
-      BRIDGE_HOSTNAME: ${BRIDGE_HOSTNAME:?BRIDGE_HOSTNAME is required}
-    networks:
-      - cms_net
-    command: sleep infinity
 
 networks:
   cms_net:

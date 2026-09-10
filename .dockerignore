@@ -1,10 +1,11 @@
+.git
+.github
 node_modules
 dist
-.git
-.gitignore
 *.md
+.env
+.env.*
 docker-compose.yml
 vitest.config.ts
-**/*.test.ts
-**/*.integration.test.ts
-**/testSupport/**
+src/**/*.test.ts
+scripts
