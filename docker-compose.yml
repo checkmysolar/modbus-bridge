@@ -56,7 +56,7 @@ services:
       retries: 3
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.8.3
+    image: cloudflare/cloudflared:2026.9.1
     restart: unless-stopped
     read_only: true
     tmpfs:
