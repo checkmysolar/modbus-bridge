@@ -47,21 +47,17 @@ npm run build
 MODBUS_HOST=192.168.1.100 npm run probe
 ```
 
-**From Docker** (the runtime image has no shell or npm — invoke Node directly):
+**From Docker**:
 
 ```bash
-docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest dist/probe.js
+docker run --rm -e MODBUS_HOST=192.168.1.100 ghcr.io/checkmysolar/modbus-bridge:latest npm run probe
 ```
 
 If the stack is already running, probe inside the `modbus` container:
 
 ```bash
-docker compose exec modbus dist/probe.js
+docker compose exec modbus npm run probe
 ```
-
-## Security
-
-The production image uses a **distroless** runtime (no shell, no package manager) and runs as a non-root user. The `docker-compose.yml` stack is hardened with a read-only root filesystem, dropped Linux capabilities, and `no-new-privileges`. Port **8080 is not published** to the host — only `cloudflared` on the internal Docker network reaches the bridge.
 
 ## Development
 

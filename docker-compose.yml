@@ -5,18 +5,6 @@ services:
       dockerfile: Dockerfile
     image: ghcr.io/checkmysolar/modbus-bridge:latest
     restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
     environment:
       CMS_BRIDGE_TOKEN: ${CMS_BRIDGE_TOKEN:?CMS_BRIDGE_TOKEN is required}
       MODBUS_HOST: ${MODBUS_HOST:?MODBUS_HOST is required}
@@ -41,12 +29,11 @@ services:
           - ${BRIDGE_HOSTNAME}
     volumes:
       - bridge_data:/data
-    # Do not publish port 8080 to the host — cloudflared reaches the bridge on the internal network only.
     healthcheck:
       test:
         [
           "CMD",
-          "/nodejs/bin/node",
+          "node",
           "-e",
           "fetch('http://127.0.0.1:8080/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
@@ -58,13 +45,6 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.8.3
     restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
     command: tunnel --metrics 127.0.0.1:60123 --no-autoupdate run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
     healthcheck:
       test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:60123", "ready"]
