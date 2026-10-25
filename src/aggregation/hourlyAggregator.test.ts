@@ -103,4 +103,24 @@ describe('HourlyAggregator', () => {
     expect(hour11?.pvKwh ?? 0).toBeGreaterThan(0);
     expect(hour12?.pvKwh ?? 0).toBeGreaterThan(0);
   });
+
+  it('integrates samples on UK DST fall-back without spinning', () => {
+    const store = createStore();
+    const aggregator = new HourlyAggregator(store, 'Europe/London');
+
+    aggregator.recordSample(
+      sampleTelemetry('2026-10-25T12:52:00.000Z', 2),
+      sampleCounters(0, '2026-10-25T12:52:00.000Z'),
+      '2026-10-25T12:52:00.000Z'
+    );
+    aggregator.recordSample(
+      sampleTelemetry('2026-10-25T12:52:10.000Z', 2),
+      sampleCounters(0, '2026-10-25T12:52:10.000Z'),
+      '2026-10-25T12:52:10.000Z'
+    );
+
+    const rows = aggregator.getHoursForDay('2026-10-25');
+    const hour12 = rows.find((row) => row.hour === 12);
+    expect(hour12?.sampleCount).toBe(2);
+  });
 });

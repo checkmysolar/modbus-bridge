@@ -52,7 +52,7 @@ function sleep(ms: number): Promise<void> {
 export class ModbusReader {
   private readonly client = new ModbusClientCtor();
   /** Serializes all Modbus transactions — Fox RS485 adapters reject concurrent requests. */
-  private readChain: Promise<void> = Promise.resolve();
+  private modbusMutex: Promise<void> = Promise.resolve();
   /** Addresses that returned Modbus exception 2 (illegal data address). */
   private readonly blacklistedAddresses = new Set<string>();
 
@@ -96,14 +96,13 @@ export class ModbusReader {
   }
 
   private async withLock<T>(fn: () => Promise<T>): Promise<T> {
-    const previous = this.readChain;
-    let release!: () => void;
-    const lock = new Promise<void>((resolve) => {
-      release = resolve;
+    const waitFor = this.modbusMutex;
+    let unlock!: () => void;
+    this.modbusMutex = new Promise<void>((resolve) => {
+      unlock = resolve;
     });
-    this.readChain = previous.then(() => lock);
     const waitStart = Date.now();
-    await previous;
+    await waitFor;
     const waitedMs = Date.now() - waitStart;
     if (waitedMs > 0) {
       this.debugLog?.(`read lock acquired after ${waitedMs}ms wait`);
@@ -111,7 +110,7 @@ export class ModbusReader {
     try {
       return await fn();
     } finally {
-      release();
+      unlock();
     }
   }
 

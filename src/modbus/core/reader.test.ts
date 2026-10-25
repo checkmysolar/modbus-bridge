@@ -57,4 +57,17 @@ describe('ModbusReader writeHoldingRegister', () => {
 
     expect(order).toEqual(['start-44000', 'end-44000', 'start-44001', 'end-44001']);
   });
+
+  it('serializes many consecutive operations without chaining promises', async () => {
+    writeRegister.mockImplementation(async (address: number) => ({ address, value: 0 }));
+
+    const reader = new ModbusReader({ host: '127.0.0.1', port: 502, unitId: 247, timeoutMs: 1000 });
+    await reader.connect();
+
+    for (let address = 44000; address < 44050; address++) {
+      await reader.writeHoldingRegister(address, 0);
+    }
+
+    expect(writeRegister).toHaveBeenCalledTimes(50);
+  });
 });

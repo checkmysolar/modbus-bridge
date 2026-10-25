@@ -9,10 +9,7 @@ import {
   reconcileHourMetrics,
   trapezoidalEnergyKwh,
 } from './metrics.js';
-import {
-  getLocalHourBucket,
-  getNextHourStart,
-} from './timezone.js';
+import { getLocalHourBucket } from './timezone.js';
 
 const SAMPLE_RETENTION_DAYS = 14;
 
@@ -114,7 +111,8 @@ export class HourlyAggregator {
 
     while (segmentStart < endDt) {
       const bucket = getLocalHourBucket(segmentStart.toISO()!, this.timezone);
-      const hourEnd = getNextHourStart(bucket.localDate, bucket.hour, this.timezone);
+      // Wall-clock hour boundaries from localDate+hour break on DST fall-back days; anchor on segmentStart.
+      const hourEnd = segmentStart.setZone(this.timezone).startOf('hour').plus({ hours: 1 });
       const segmentEnd = DateTime.min(endDt, hourEnd);
       const deltaHours = segmentEnd.diff(segmentStart, 'hours').hours;
 
@@ -140,6 +138,10 @@ export class HourlyAggregator {
       }
 
       if (segmentEnd >= endDt) {
+        break;
+      }
+
+      if (segmentEnd <= segmentStart) {
         break;
       }
 
