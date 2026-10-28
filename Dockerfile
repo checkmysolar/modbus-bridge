@@ -1,6 +1,6 @@
 # Build native modules (better-sqlite3) against glibc, then ship a distroless runtime
 # with no shell or package manager to minimise post-exploitation options.
-ARG NODE_IMAGE=node:24.21.0-trixie-slim@sha256:db3ae80f5d8df06e04dabdf7b44cbf008d32de168205fa0294444aabbc08c590
+ARG NODE_IMAGE=node:24.22.1-trixie-slim@sha256:89c5244bc22a9bc3287d89ebc7e49b9cb5bb84cd40e6175ac3421d5a9f68b95a
 ARG RUNNER_IMAGE=gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
