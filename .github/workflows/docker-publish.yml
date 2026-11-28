@@ -5,12 +5,20 @@
 #
 # Users pull with:
 #   docker pull ghcr.io/checkmysolar/modbus-bridge:latest
+#
+# Also builds ghcr.io/checkmysolar/modbus-bridge-homeassistant for Home Assistant OS.
 
 name: Publish Docker image
 
 on:
   release:
     types: [published]
+
+env:
+  HA_ARCHITECTURES: '["amd64", "aarch64"]'
+  HA_IMAGE_NAME: modbus-bridge-homeassistant
+  HA_REGISTRY_PREFIX: ghcr.io/checkmysolar
+  HA_APP_PATH: homeassistant/checkmysolar_modbus_bridge
 
 jobs:
   publish:
@@ -60,3 +68,72 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BRIDGE_VERSION=${{ github.event.release.tag_name }}
+
+  homeassistant-matrix:
+    name: Prepare Home Assistant image matrix
+    needs: publish
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Prepare build matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.09.0
+        with:
+          architectures: ${{ env.HA_ARCHITECTURES }}
+          image-name: ${{ env.HA_IMAGE_NAME }}
+          registry-prefix: ${{ env.HA_REGISTRY_PREFIX }}
+
+  homeassistant-build:
+    name: Build Home Assistant ${{ matrix.arch }} image
+    needs: homeassistant-matrix
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.homeassistant-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Build image
+        uses: home-assistant/builder/actions/build-image@2026.09.0
+        with:
+          arch: ${{ matrix.arch }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          context: ${{ env.HA_APP_PATH }}
+          image: ${{ matrix.image }}
+          image-tags: |
+            ${{ github.event.release.tag_name }}
+            ${{ !github.event.release.prerelease && 'latest' || '' }}
+          labels: |
+            io.hass.type=app
+            io.hass.name=Check My Solar Modbus Bridge
+            io.hass.description=Fox ESS Modbus bridge for Check My Solar
+            io.hass.url=https://github.com/checkmysolar/modbus-bridge
+          push: "true"
+          version: ${{ github.event.release.tag_name }}
+
+  homeassistant-manifest:
+    name: Publish Home Assistant multi-arch manifest
+    needs: [homeassistant-matrix, homeassistant-build]
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - name: Publish multi-arch manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.09.0
+        with:
+          architectures: ${{ env.HA_ARCHITECTURES }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image-name: ${{ env.HA_IMAGE_NAME }}
+          image-tags: |
+            ${{ github.event.release.tag_name }}
+            ${{ !github.event.release.prerelease && 'latest' || '' }}
+          registry-prefix: ${{ env.HA_REGISTRY_PREFIX }}

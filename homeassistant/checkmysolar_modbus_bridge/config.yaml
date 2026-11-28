@@ -1,0 +1,47 @@
+# https://contributors.home-assistant.io/apps/reference/configuration/
+name: Check My Solar Modbus Bridge
+version: "v2.0.1"
+slug: checkmysolar_modbus_bridge
+description: >-
+  Poll Fox ESS inverters over Modbus TCP and connect to Check My Solar via a private tunnel.
+url: "https://github.com/checkmysolar/modbus-bridge/tree/main/homeassistant/checkmysolar_modbus_bridge"
+arch:
+  - aarch64
+  - amd64
+startup: application
+init: false
+stage: experimental
+image: ghcr.io/checkmysolar/modbus-bridge-homeassistant
+watchdog: "http://[HOST]:[PORT:8080]/v1/health"
+options:
+  cms_bridge_token: null
+  tunnel_token: null
+  modbus_host: null
+  bridge_hostname: null
+  site_timezone: "Europe/London"
+  modbus_port: 502
+  modbus_unit_id: 247
+  poll_interval_ms: 10000
+  modbus_timeout_ms: 5000
+  modbus_connection: aux
+  modbus_read_only: true
+  cms_notifications_enabled: false
+  bridge_verbose_log: false
+  modbus_debug_log: false
+schema:
+  cms_bridge_token: password
+  tunnel_token: password
+  modbus_host: str
+  bridge_hostname: str
+  site_timezone: str
+  modbus_port: port
+  modbus_unit_id: int(1,247)
+  poll_interval_ms: int(1000,)
+  modbus_timeout_ms: int(1000,)
+  modbus_connection: list(aux|lan)
+  inverter_profile: "list(h1g2|h1Series|kh|h3Legacy|h3Modern)?"
+  modbus_read_only: bool
+  cms_notifications_enabled: bool
+  bridge_verbose_log: bool
+  modbus_debug_log: bool
+  cms_api_base_url: url?

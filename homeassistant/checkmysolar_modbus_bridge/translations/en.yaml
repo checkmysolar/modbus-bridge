@@ -1,0 +1,49 @@
+configuration:
+  cms_bridge_token:
+    name: Check My Solar bridge token
+    description: From Check My Solar → Menu → Account → Modbus Bridge. You can use !secret in Home Assistant.
+  tunnel_token:
+    name: Cloudflare tunnel token
+    description: Tunnel token from the Modbus Bridge setup in Check My Solar.
+  modbus_host:
+    name: Modbus host
+    description: IP address of the inverter or RS485-to-Ethernet adapter on your LAN.
+  bridge_hostname:
+    name: Bridge hostname
+    description: Internal hostname from Check My Solar (used for tunnel origin routing).
+  site_timezone:
+    name: Site timezone
+    description: IANA timezone for hourly aggregates (e.g. Europe/London).
+  modbus_port:
+    name: Modbus TCP port
+    description: Usually 502.
+  modbus_unit_id:
+    name: Modbus unit ID
+    description: Fox ESS default is often 247.
+  poll_interval_ms:
+    name: Poll interval (ms)
+    description: How often to read the inverter.
+  modbus_timeout_ms:
+    name: Modbus timeout (ms)
+    description: Per-request timeout.
+  modbus_connection:
+    name: Connection type
+    description: aux = RS485 adapter; lan = direct inverter Ethernet.
+  inverter_profile:
+    name: Inverter profile
+    description: Leave empty for auto-detect, or force a register map.
+  modbus_read_only:
+    name: Read-only Modbus
+    description: When enabled, the bridge never writes holding registers.
+  cms_notifications_enabled:
+    name: Instant notifications
+    description: Send notification triggers to Check My Solar when enabled.
+  bridge_verbose_log:
+    name: Verbose bridge logging
+    description: Log each Modbus poll and HTTP request.
+  modbus_debug_log:
+    name: Modbus debug logging
+    description: Log low-level Modbus batching and retries.
+  cms_api_base_url:
+    name: Check My Solar API base URL
+    description: Optional override; default is https://checkmy.solar.

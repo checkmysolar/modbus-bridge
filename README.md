@@ -37,6 +37,16 @@ export SITE_TIMEZONE='Europe/London'              # IANA timezone for hour bucke
 docker compose up -d
 ```
 
+## Home Assistant
+
+On **Home Assistant OS**, you can install this bridge as a Supervisor app (Modbus bridge and Cloudflare tunnel in one container). Add the repository, install **Check My Solar Modbus Bridge**, and paste the tokens from Check My Solar into the app configuration.
+
+[![Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fcheckmysolar%2Fmodbus-bridge)
+
+Setup and options: [homeassistant/checkmysolar_modbus_bridge/DOCS.md](homeassistant/checkmysolar_modbus_bridge/DOCS.md).
+
+When cutting a release, bump `version` in `homeassistant/checkmysolar_modbus_bridge/config.yaml` so it matches the Git tag (e.g. `v2.0.2`). The workflow publishes `ghcr.io/checkmysolar/modbus-bridge-homeassistant` with the same tag.
+
 ## Test inverter connectivity
 
 Confirm Modbus works from your LAN before setting up tokens or Docker:
