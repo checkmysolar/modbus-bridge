@@ -1,6 +1,6 @@
 # https://contributors.home-assistant.io/apps/reference/configuration/
 name: Check My Solar Modbus Bridge
-version: "v2.0.1"
+version: "home-assistant-app"
 slug: checkmysolar_modbus_bridge
 description: >-
   Poll Fox ESS inverters over Modbus TCP and connect to Check My Solar via a private tunnel.
